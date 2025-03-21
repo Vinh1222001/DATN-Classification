@@ -1,0 +1,3 @@
+[submodule "lib/common"]
+	path = lib/common
+	url = git@github.com:Vinh1222001/DATN-common.git
