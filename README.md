@@ -1,4 +1,4 @@
-# PHẦN DI CHUYỂN VÀ HOẠT ĐỘNG CỦA ROBOT
+# PHẦN PHÂN LOẠI SẢN PHẨM
 
 ## Cách chạy dự án
 
@@ -6,7 +6,7 @@
 
 2. Clone dự án bằng câu lệnh:
 
-> git clone git@github.com:Vinh1222001/DATN-Movement_n_Delivery.git
+> git clone git@github.com:Vinh1222001/DATN-Classification.git
 
 3. Sử dụng nút `build` (khuyên dùng vì nó nhanh) để tải các gói thư viện hoặc mở PlatformIO CLI và chạy câu lệnh
 
