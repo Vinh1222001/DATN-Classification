@@ -32,8 +32,8 @@
 // Select camera model - find more camera models in camera_pins.h file here
 // https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/camera_pins.h
 
-#define CAMERA_MODEL_ESP_EYE // Has PSRAM
-// #define CAMERA_MODEL_AI_THINKER // Has PSRAM
+// #define CAMERA_MODEL_ESP_EYE // Has PSRAM
+#define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
 #if defined(CAMERA_MODEL_ESP_EYE)
 #define PWDN_GPIO_NUM -1
