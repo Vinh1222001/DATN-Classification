@@ -1,38 +1,8 @@
-/* Edge Impulse Arduino examples
- * Copyright (c) 2022 EdgeImpulse Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
-// These sketches are tested with 2.0.4 ESP32 Arduino Core
-// https://github.com/espressif/arduino-esp32/releases/tag/2.0.4
-
-/* Includes ---------------------------------------------------------------- */
 #include <Object-detection-ESP32_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 
 #include "esp_camera.h"
 
-// Select camera model - find more camera models in camera_pins.h file here
-// https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/camera_pins.h
-
-// #define CAMERA_MODEL_ESP_EYE // Has PSRAM
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
 #if defined(CAMERA_MODEL_ESP_EYE)
