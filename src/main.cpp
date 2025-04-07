@@ -24,16 +24,23 @@ void setup()
 
     ESP_LOGI("SET UP", "Initializing...\n");
 
+    if (!WifiUtil::initWifi(Constants::WIFI_SSID.c_str(), Constants::WIFI_PASSWORD.c_str(), true))
+    {
+        ESP_LOGE(WifiUtil::TAG, "Can't connect to wifif");
+        while (true)
+        {
+            delay(1000);
+        }
+    }
+
     Communicate *communicate = new Communicate();
 
-    const uint8_t peerMac[6] = {0x48, 0xe7, 0x29, 0x99, 0x32, 0x04};
-    if (communicate->begin(peerMac))
+    if (communicate->begin())
     {
         ESP_LOGI("ESP32 B", "ESP-NOW Init   ialized Successfully");
-        Message msg = {1, 3.14f};
-
+        std::vector<String> stringArray = {"Xin chào", "ESP", "NOW"};
         // Gửi message đến ESP32 B
-        communicate->send(reinterpret_cast<uint8_t *>(&msg), sizeof(msg));
+        communicate->send(stringArray);
     }
     else
     {
