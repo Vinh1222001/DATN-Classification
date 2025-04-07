@@ -3,5 +3,6 @@
 #define MAIN_HPP
 
 #include "base_module.hpp"
+#include "communicate.hpp"
 
 #endif
