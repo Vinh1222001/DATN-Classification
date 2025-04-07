@@ -7,8 +7,7 @@
 #include "base_module.hpp"
 #include "communicate.hpp"
 #include "types.hpp"
-#include "util.set.hpp"
-#include "util.wifi.hpp"
+#include "utils/wifi.hpp"
 #include "constants.hpp"
 
 #endif

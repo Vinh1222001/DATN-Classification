@@ -51,9 +51,12 @@ bool Communicate::send(const std::vector<String> &data)
         if (i < data.size() - 1)
             combined += ","; // dùng dấu phẩy để phân tách
     }
+    char hold[200];
 
-    const Types::EspNowMessage<String> msg = SetUtils::createEspNowMessage<String>(combined);
-    esp_err_t result = esp_now_send(peerMac, reinterpret_cast<const uint8_t *>(&msg), sizeof(combined));
+    const Types::EspNowMessage msg = SetUtils::createEspNowMessage<String>(combined);
+
+    ESP_LOGI(this->NAME, "Data send: Id:%s and content: %s, size: %d", msg.id, msg.content, sizeof(msg));
+    esp_err_t result = esp_now_send(peerMac, reinterpret_cast<const uint8_t *>(&msg), sizeof(msg));
     if (result == ESP_OK)
     {
         ESP_LOGI(this->NAME, "Sent data successfully");
@@ -91,7 +94,7 @@ void Communicate::onDataRecv(const uint8_t *mac, const uint8_t *incomingData, in
     ESP_LOGI(this->NAME, "Received data from %02X:%02X:%02X:%02X:%02X:%02X, length: %d",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], len);
     // TODO: Handle incoming data here
-    const Types::EspNowMessage<bool> *packet = reinterpret_cast<const Types::EspNowMessage<bool> *>(incomingData);
+    const Types::EspNowMessage *packet = reinterpret_cast<const Types::EspNowMessage *>(incomingData);
     ESP_LOGI(this->NAME, "Data Received: Id: %s, value: %d", packet->id, packet->content);
 
     if (packet->content)

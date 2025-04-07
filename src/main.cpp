@@ -24,7 +24,7 @@ void setup()
 
     ESP_LOGI("SET UP", "Initializing...\n");
 
-    if (!WifiUtil::initWifi(Constants::WIFI_SSID.c_str(), Constants::WIFI_PASSWORD.c_str(), true))
+    if (!WifiUtil::initWifi(WIFI_SSID, WIFI_PASSWORD, true))
     {
         ESP_LOGE(WifiUtil::TAG, "Can't connect to wifif");
         while (true)
