@@ -16,6 +16,8 @@ RWebServer::~RWebServer()
 
 bool RWebServer::connectWifi()
 {
+  const char *ssid = "Tran Hung";
+  const char *password = "66668888";
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED)
   {

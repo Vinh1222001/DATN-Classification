@@ -3,6 +3,9 @@
 
 #include "esp_camera.h"
 
+#include <WebServer.h>
+#include <WiFi.h>
+
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
 #if defined(CAMERA_MODEL_ESP_EYE)
@@ -97,6 +100,52 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr);
 
+const char *ssid = "KAI Coffee";
+const char *password = "camonban";
+
+WebServer server(80);
+WiFiClient lastClient;
+
+void handle_jpg_stream(void)
+{
+  WiFiClient client = server.client();
+
+  if (!client)
+    return;
+
+  // If a previous client exists, stop it
+  if (lastClient.connected())
+  {
+    lastClient.stop();
+    delay(100);
+  }
+  lastClient = client;
+
+  String response = "HTTP/1.1 200 OK\r\n";
+  response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
+  server.sendContent(response);
+
+  while (1)
+  {
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb)
+    {
+      Serial.println("Camera capture failed");
+      return;
+    }
+
+    server.sendContent("--frame\r\n");
+    server.sendContent("Content-Type: image/jpeg\r\n\r\n");
+    server.sendContent((const char *)fb->buf, fb->len);
+    server.sendContent("\r\n");
+    esp_camera_fb_return(fb);
+
+    if (!client.connected())
+      break;
+    delay(100); // Adjust for frame rate
+  }
+}
+
 /**
  * @brief      Arduino setup function
  */
@@ -107,6 +156,22 @@ void setup()
   // comment out the below line to start inference immediately after upload
   while (!Serial)
     ;
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected");
+  Serial.println(WiFi.localIP());
+
+  // Start Webserver
+  server.on("/stream", HTTP_GET, handle_jpg_stream);
+  server.begin();
+  Serial.println("Web server started at /stream");
+
   Serial.println("Edge Impulse Inferencing Demo");
   if (ei_camera_init() == false)
   {
@@ -128,100 +193,105 @@ void setup()
  */
 void loop()
 {
+  server.handleClient();
 
-  // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
-  if (ei_sleep(5) != EI_IMPULSE_OK)
+  if (WiFi.status() == WL_CONNECTED)
   {
-    return;
-  }
+    if (ei_sleep(5) != EI_IMPULSE_OK)
+    {
+      return;
+    }
 
-  snapshot_buf = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
+    snapshot_buf = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
 
-  // check if allocation was successful
-  if (snapshot_buf == nullptr)
-  {
-    ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-    return;
-  }
+    // check if allocation was successful
+    if (snapshot_buf == nullptr)
+    {
+      ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+      return;
+    }
 
-  ei::signal_t signal;
-  signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-  signal.get_data = &ei_camera_get_data;
+    ei::signal_t signal;
+    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+    signal.get_data = &ei_camera_get_data;
 
-  if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false)
-  {
-    ei_printf("Failed to capture image\r\n");
-    free(snapshot_buf);
-    return;
-  }
+    if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false)
+    {
+      ei_printf("Failed to capture image\r\n");
+      free(snapshot_buf);
+      return;
+    }
 
-  // Run the classifier
-  ei_impulse_result_t result = {0};
+    // Run the classifier
+    ei_impulse_result_t result = {0};
 
-  EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-  if (err != EI_IMPULSE_OK)
-  {
-    ei_printf("ERR: Failed to run classifier (%d)\n", err);
-    return;
-  }
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+    if (err != EI_IMPULSE_OK)
+    {
+      ei_printf("ERR: Failed to run classifier (%d)\n", err);
+      return;
+    }
 
-  // print the predictions
-  ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-            result.timing.dsp, result.timing.classification, result.timing.anomaly);
+    // print the predictions
+    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+              result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-  ei_printf("Object detection bounding boxes:\r\n");
-  for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
-  {
-    ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
-    if (bb.value == 0)
+    ei_printf("Object detection bounding boxes:\r\n");
+    for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
     {
-      continue;
+      ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
+      if (bb.value == 0)
+      {
+        continue;
+      }
+      ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
+                bb.label,
+                bb.value,
+                bb.x,
+                bb.y,
+                bb.width,
+                bb.height);
     }
-    ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
-              bb.label,
-              bb.value,
-              bb.x,
-              bb.y,
-              bb.width,
-              bb.height);
-  }
 
-  // Print the prediction results (classification)
+    // Print the prediction results (classification)
 #else
-  ei_printf("Predictions:\r\n");
-  for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
-  {
-    ei_printf("  %s: ", ei_classifier_inferencing_categories[i]);
-    ei_printf("%.5f\r\n", result.classification[i].value);
-  }
+    ei_printf("Predictions:\r\n");
+    for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+    {
+      ei_printf("  %s: ", ei_classifier_inferencing_categories[i]);
+      ei_printf("%.5f\r\n", result.classification[i].value);
+    }
 #endif
 
-  // Print anomaly result (if it exists)
+    // Print anomaly result (if it exists)
 #if EI_CLASSIFIER_HAS_ANOMALY
-  ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
+    ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
 #endif
 
 #if EI_CLASSIFIER_HAS_VISUAL_ANOMALY
-  ei_printf("Visual anomalies:\r\n");
-  for (uint32_t i = 0; i < result.visual_ad_count; i++)
-  {
-    ei_impulse_result_bounding_box_t bb = result.visual_ad_grid_cells[i];
-    if (bb.value == 0)
+    ei_printf("Visual anomalies:\r\n");
+    for (uint32_t i = 0; i < result.visual_ad_count; i++)
     {
-      continue;
+      ei_impulse_result_bounding_box_t bb = result.visual_ad_grid_cells[i];
+      if (bb.value == 0)
+      {
+        continue;
+      }
+      ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
+                bb.label,
+                bb.value,
+                bb.x,
+                bb.y,
+                bb.width,
+                bb.height);
     }
-    ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
-              bb.label,
-              bb.value,
-              bb.x,
-              bb.y,
-              bb.width,
-              bb.height);
-  }
 #endif
 
-  free(snapshot_buf);
+    free(snapshot_buf);
+  }
+
+  // instead of wait_ms, we'll wait on the signal, this allows threads to cancel us...
 }
 
 /**

@@ -7,8 +7,8 @@
 #include "esp_http_server.h"
 #include "camera.hpp"
 
-const char *ssid = "Tran Hung";
-const char *password = "66668888";
+// const char *ssid = "Tran Hung";
+// const char *password = "66668888";
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 
