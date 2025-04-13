@@ -65,7 +65,7 @@ bool Camera::init()
   if (is_initialised)
     return true;
 
-  esp_err_t err = esp_camera_init(&config);
+  esp_err_t err = esp_camera_init(&this->config);
   if (err != ESP_OK)
   {
     ESP_LOGE(this->NAME, "Camera init failed with error 0x%x\n", err);
@@ -131,6 +131,7 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
   {
     do_resize = true;
   }
+
   if (do_resize)
   {
     ei::image::processing::crop_and_interpolate_rgb888(

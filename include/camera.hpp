@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include "base_module.hpp"
+#include "types.hpp"
 #include "esp_camera.h"
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 
@@ -56,34 +57,27 @@
 #define EI_CAMERA_RAW_FRAME_BUFFER_ROWS 240
 #define EI_CAMERA_FRAME_BYTE_SIZE 3
 
+#
+
 class Camera : public BaseModule
 {
 public:
   Camera();
   ~Camera();
 
-  // Khởi tạo camera
-  bool init();
-
-  // Giải phóng camera
-  void deinit();
-
-  // Capture ảnh, rescale và crop nếu cần.
-  // out_buf phải được cấp phát đủ kích thước từ bên ngoài.
-  bool capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
-
-  // Hàm lấy dữ liệu ảnh đã capture để xử lý (ví dụ cho inferencing)
-  // Hàm này chuyển đổi dữ liệu từ buffer (RGB888) sang một chuỗi số float theo thứ tự R,G,B
   int get_data(size_t offset, size_t length, float *out_ptr);
 
   void taskFn() override;
 
 private:
-  bool is_initialised;
+  bool is_initialized;
   camera_config_t config;
-  // Chúng ta sẽ lưu trữ pointer của buffer ảnh đã capture trong biến thành viên snapshot_buf
-  // Lưu ý: Buffer này sẽ được truyền từ bên ngoài trong hàm capture.
   uint8_t *snapshot_buf;
+
+  bool init();
+  void deinit();
+
+  bool capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
 };
 
-#endif // CAMERA_HPP
+#endif
