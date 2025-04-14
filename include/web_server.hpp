@@ -2,10 +2,8 @@
 #ifndef WEB_SERVER_HPP
 #define WEB_SERVER_HPP
 
-#include <WiFi.h>
-#include "base_module.hpp"
+#include "global.hpp"
 #include "esp_http_server.h"
-#include "camera.hpp"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 class RWebServer : public BaseModule

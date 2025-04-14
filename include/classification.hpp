@@ -2,13 +2,8 @@
 #ifndef CLASSIFICATION_HPP
 #define CLASSIFICATION_HPP
 
-#include <Arduino.h>
-#include "base_module.hpp"
-#include "types.hpp"
-#include "camera.hpp"
+#include "global.hpp"
 #include <vector>
-
-#include <Object-detection-ESP32_inferencing.h>
 
 using BoundingBox = Types::SemaphoreMutexData<std::vector<ei_impulse_result_bounding_box_t>>;
 

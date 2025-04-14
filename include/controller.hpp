@@ -2,9 +2,10 @@
 #ifndef CONTROLLER_HPP
 #define CONTROLLER_HPP
 
-#include <Arduino.h>
-#include "base_module.hpp"
-#include "camera.hpp"
+// #include <Arduino.h>
+// #include "base_module.hpp"
+// #include "camera.hpp"
+#include "global.hpp"
 #include "classification.hpp"
 #include "web_server.hpp"
 

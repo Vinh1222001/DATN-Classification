@@ -7,6 +7,7 @@
 #include "types.hpp"
 #include "esp_camera.h"
 #include "edge-impulse-sdk/dsp/image/image.hpp"
+#include <Object-detection-ESP32_inferencing.h>
 
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
@@ -76,8 +77,7 @@ public:
 
   bool available();
 
-  void
-  taskFn() override;
+  void taskFn() override;
 
 private:
   bool isInitialized;
