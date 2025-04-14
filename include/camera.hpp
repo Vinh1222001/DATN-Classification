@@ -57,7 +57,7 @@
 #define EI_CAMERA_RAW_FRAME_BUFFER_ROWS 240
 #define EI_CAMERA_FRAME_BYTE_SIZE 3
 
-#
+using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
 
 class Camera : public BaseModule
 {
@@ -65,14 +65,24 @@ public:
   Camera();
   ~Camera();
 
-  int get_data(size_t offset, size_t length, float *out_ptr);
+  int getData(size_t offset, size_t length, float *out_ptr);
+  bool getJpg(
+      uint8_t **jpgBuf,
+      size_t *jpgLen,
+      size_t snapshotLen = EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+      size_t width = EI_CAMERA_RAW_FRAME_BUFFER_COLS,
+      size_t height = EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+      pixformat_t format = PIXFORMAT_JPEG);
 
-  void taskFn() override;
+  bool available();
+
+  void
+  taskFn() override;
 
 private:
-  bool is_initialized;
+  bool isInitialized;
   camera_config_t config;
-  uint8_t *snapshot_buf;
+  SnapshotBuffer snapshotBuffer;
 
   bool init();
   void deinit();

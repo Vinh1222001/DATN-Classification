@@ -2,9 +2,13 @@
 
 // Constructor: Khởi tạo cấu hình camera theo model đã định nghĩa (ví dụ: AI THINKER)
 Camera::Camera()
-    : BaseModule("CAMERA"),
-      is_initialised(false),
-      snapshot_buf(nullptr)
+    : BaseModule(
+          "CAMERA",
+          CAMERA_TASK_PRIORITY,
+          0,
+          CAMERA_TASK_STACK_DEPTH_LEVEL,
+          CAMERA_TASK_PINNED_CORE_ID),
+      isInitialized(false)
 {
   // Thiết lập cấu hình camera dựa vào các macro định nghĩa từ file camera_pins.h
   config.pin_pwdn = PWDN_GPIO_NUM;
@@ -38,6 +42,19 @@ Camera::Camera()
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
+  this->snapshotBuffer.value = nullptr;
+  this->snapshotBuffer.xMutex = xSemaphoreCreateMutex();
+
+  if (psramFound())
+  {
+    ESP_LOGI(this->NAME, "PSRAM is enabled and detected!");
+    ESP_LOGI(this->NAME, "Free PSRAM: %d bytes\n", ESP.getFreePsram());
+  }
+  else
+  {
+    ESP_LOGE(this->NAME, "PSRAM NOT FOUND! Check board config or hardware.");
+  }
+
   if (this->init() == false)
   {
     ei_printf("Failed to initialize Camera!\r\n");
@@ -45,6 +62,7 @@ Camera::Camera()
   else
   {
     ei_printf("Camera initialized\r\n");
+    this->isInitialized = true;
   }
 
   ei_printf("\nStarting continious inference in 2 seconds...\n");
@@ -53,16 +71,15 @@ Camera::Camera()
 
 Camera::~Camera()
 {
-  if (is_initialised)
+  if (isInitialized)
   {
     deinit();
   }
-  // Không cần free(snapshot_buf) vì nó được cấp phát bên ngoài (trong hàm capture)
 }
 
 bool Camera::init()
 {
-  if (is_initialised)
+  if (isInitialized)
     return true;
 
   esp_err_t err = esp_camera_init(&this->config);
@@ -81,7 +98,7 @@ bool Camera::init()
     s->set_saturation(s, 0);
   }
 
-  is_initialised = true;
+  this->isInitialized = true;
   return true;
 }
 
@@ -93,15 +110,13 @@ void Camera::deinit()
     ESP_LOGE(this->NAME, "Camera deinit failed");
     return;
   }
-  is_initialised = false;
+  isInitialized = false;
 }
 
-// Capture ảnh từ camera, chuyển đổi về RGB888 (raw) và crop/rescale nếu cần.
-// out_buf là buffer được cấp phát từ bên ngoài có kích thước đủ để chứa ảnh đã xử lý.
 bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 {
   bool do_resize = false;
-  if (!is_initialised)
+  if (!isInitialized)
   {
     ESP_LOGE(this->NAME, "ERR: Camera is not initialized");
     return false;
@@ -114,10 +129,8 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
     return false;
   }
 
-  // Chuyển đổi ảnh JPEG sang định dạng RGB888 và lưu vào out_buf.
-  // Nếu quá trình chuyển đổi thất bại, in lỗi.
   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
-  // Trả lại frame buffer
+
   esp_camera_fb_return(fb);
 
   if (!converted)
@@ -143,63 +156,95 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
         img_height);
   }
 
-  // Lưu pointer buffer vào snapshot_buf để các hàm khác có thể truy cập dữ liệu ảnh đã capture.
-  snapshot_buf = out_buf;
-
   return true;
 }
 
-// Hàm get_data: chuyển đổi dữ liệu RGB888 (đã lưu trong snapshot_buf) từ offset và length thành một mảng float.
-// Giá trị trả về là số pixel được xử lý theo thứ tự (RGB) trong một số nguyên đại diện (hoặc dưới dạng float).
-int Camera::get_data(size_t offset, size_t length, float *out_ptr)
+int Camera::getData(size_t offset, size_t length, float *out_ptr)
 {
-  if (snapshot_buf == nullptr)
+  if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
   {
-    ESP_LOGE(this->NAME, "No snapshot buffer available");
-    return -1;
-  }
-  // Mỗi pixel có 3 byte (RGB)
-  size_t pixel_ix = offset * 3;
-  size_t pixels_left = length;
-  size_t out_ptr_ix = 0;
-  while (pixels_left != 0)
-  {
-    // Swap từ định dạng BGR sang RGB nếu cần, theo thông báo về bug của esp32-camera.
-    out_ptr[out_ptr_ix] = (snapshot_buf[pixel_ix + 2] << 16) + (snapshot_buf[pixel_ix + 1] << 8) + snapshot_buf[pixel_ix];
-    out_ptr_ix++;
-    pixel_ix += 3;
-    pixels_left--;
+    if (this->snapshotBuffer.value == nullptr)
+    {
+      ESP_LOGE(this->NAME, "No snapshot buffer available");
+      xSemaphoreGive(this->snapshotBuffer.xMutex);
+      return -1;
+    }
+    // Mỗi pixel có 3 byte (RGB)
+    size_t pixel_ix = offset * 3;
+    size_t pixels_left = length;
+    size_t out_ptr_ix = 0;
+    while (pixels_left != 0)
+    {
+      // Swap từ định dạng BGR sang RGB nếu cần, theo thông báo về bug của esp32-camera.
+      out_ptr[out_ptr_ix] = (this->snapshotBuffer.value[pixel_ix + 2] << 16) + (this->snapshotBuffer.value[pixel_ix + 1] << 8) + this->snapshotBuffer.value[pixel_ix];
+      out_ptr_ix++;
+      pixel_ix += 3;
+      pixels_left--;
+    }
+    xSemaphoreGive(this->snapshotBuffer.xMutex);
   }
   return 0;
 }
 
 void Camera::taskFn()
 {
-
-  if (ei_sleep(5) != EI_IMPULSE_OK)
+  if (ei_sleep(CAMERA_TASK_DELAY) != EI_IMPULSE_OK)
   {
     return;
   }
 
-  uint8_t *buffer = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
-  if (buffer == nullptr)
+  if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
   {
-    ESP_LOGE(this->NAME, "Allocation failed");
-    return;
-  }
+    this->snapshotBuffer.value = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
+    if (this->snapshotBuffer.value == nullptr)
+    {
+      ESP_LOGE(this->NAME, "Allocation failed");
+      xSemaphoreGive(this->snapshotBuffer.xMutex);
+      return;
+    }
 
-  if (this->capture(EI_CAMERA_RAW_FRAME_BUFFER_COLS, EI_CAMERA_RAW_FRAME_BUFFER_ROWS, buffer))
+    if (!this->capture(EI_CAMERA_RAW_FRAME_BUFFER_COLS, EI_CAMERA_RAW_FRAME_BUFFER_ROWS, this->snapshotBuffer.value))
+    {
+      ESP_LOGE(this->NAME, "Failed to capture image");
+      free(this->snapshotBuffer.value);
+      xSemaphoreGive(this->snapshotBuffer.xMutex);
+      return;
+    }
+    free(this->snapshotBuffer.value);
+
+    xSemaphoreGive(this->snapshotBuffer.value);
+  }
+}
+
+bool Camera::getJpg(
+    uint8_t **jpgBuf,
+    size_t *jpgLen,
+    size_t snapshotLen,
+    size_t width,
+    size_t height,
+    pixformat_t format)
+{
+  bool success = false;
+
+  xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY);
+  if (this->snapshotBuffer.value)
   {
-    ESP_LOGI(this->NAME, "Capture succeeded");
-    // Sau đó, bạn có thể dùng camera.get_data(offset, length, out_ptr) để lấy dữ liệu ảnh.
-    // Ví dụ:
-    size_t num_pixels = EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS;
-    float *data = new float[num_pixels];
-    this->get_data(0, num_pixels, data);
-    // Xử lý data theo yêu cầu ...
+    // giả sử snapshot_fb là frame RGB565 hoặc GRAYSCALE (không phải JPEG)
+    camera_fb_t fake_fb = {
+        .buf = this->snapshotBuffer.value,
+        .len = snapshotLen,
+        .width = width,
+        .height = height,
+        .format = format};
 
-    // Giải phóng bộ nhớ
-    delete[] data;
+    success = frame2jpg(&fake_fb, 80, jpgBuf, jpgLen);
   }
-  free(buffer);
+  xSemaphoreGive(this->snapshotBuffer.xMutex);
+
+  return success;
+}
+
+bool Camera::available()
+{
+  return this->isInitialized;
 }

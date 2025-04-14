@@ -7,11 +7,7 @@
 #include "esp_http_server.h"
 #include "camera.hpp"
 
-// const char *ssid = "Tran Hung";
-// const char *password = "66668888";
-
 #define PART_BOUNDARY "123456789000000000000987654321"
-
 class RWebServer : public BaseModule
 {
 private:
@@ -19,18 +15,18 @@ private:
   const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
   const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
+  Camera *camera = nullptr;
+
   httpd_handle_t streamHttpd = NULL;
 
   esp_err_t streamHandler(httpd_req_t *req);
 
   static esp_err_t streamHandlerWrapper(httpd_req_t *req);
 
-  bool connectWifi();
-
   void taskFn() override;
 
 public:
-  RWebServer();
+  RWebServer(Camera *cam);
   ~RWebServer();
 
   void startCameraServer();
