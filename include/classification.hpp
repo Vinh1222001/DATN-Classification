@@ -2,10 +2,22 @@
 #ifndef CLASSIFICATION_HPP
 #define CLASSIFICATION_HPP
 
-#include "global.hpp"
+#include "base_module.hpp"
+#include "types.hpp"
+#include "camera.hpp"
 #include <vector>
 
-using BoundingBox = Types::SemaphoreMutexData<std::vector<ei_impulse_result_bounding_box_t>>;
+struct ResultBoundingBox
+{
+    const char *label;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+    float value;
+};
+
+using BoundingBox = Types::SemaphoreMutexData<std::vector<ResultBoundingBox>>;
 
 class Classification : public BaseModule
 {
@@ -20,7 +32,7 @@ public:
     Classification(Camera *cam, bool debugNn = false);
     ~Classification();
 
-    std::vector<ei_impulse_result_bounding_box_t> getClassifyResult();
+    std::vector<ResultBoundingBox> getClassifyResult();
 };
 
 #endif

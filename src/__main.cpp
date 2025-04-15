@@ -116,59 +116,59 @@
 
 // void mjpeg_stream_task(void *pvParameters)
 // {
-//   WiFiClient client = *((WiFiClient *)pvParameters);
+//     WiFiClient client = *((WiFiClient *)pvParameters);
 
-//   while (client.connected())
-//   {
-//     if (xSemaphoreTake(fb_mutex, portMAX_DELAY) == pdTRUE)
+//     while (client.connected())
 //     {
-//       camera_fb_t *fb = esp_camera_fb_get();
-//       if (!fb)
-//       {
-//         xSemaphoreGive(fb_mutex);
-//         continue;
-//       }
+//         if (xSemaphoreTake(fb_mutex, portMAX_DELAY) == pdTRUE)
+//         {
+//             camera_fb_t *fb = esp_camera_fb_get();
+//             if (!fb)
+//             {
+//                 xSemaphoreGive(fb_mutex);
+//                 continue;
+//             }
 
-//       client.print("--frame\r\n");
-//       client.print("Content-Type: image/jpeg\r\n\r\n");
-//       client.write(fb->buf, fb->len);
-//       client.print("\r\n");
+//             client.print("--frame\r\n");
+//             client.print("Content-Type: image/jpeg\r\n\r\n");
+//             client.write(fb->buf, fb->len);
+//             client.print("\r\n");
 
-//       esp_camera_fb_return(fb);
-//       xSemaphoreGive(fb_mutex);
+//             esp_camera_fb_return(fb);
+//             xSemaphoreGive(fb_mutex);
+//         }
+
+//         delay(100);
 //     }
 
-//     delay(100);
-//   }
-
-//   client.stop();
-//   vTaskDelete(NULL);
+//     client.stop();
+//     vTaskDelete(NULL);
 // }
 
 // void handle_jpg_stream()
 // {
-//   WiFiClient client = server.client();
-//   if (!client)
-//     return;
+//     WiFiClient client = server.client();
+//     if (!client)
+//         return;
 
-//   if (lastClient.connected())
-//     lastClient.stop();
-//   lastClient = client;
+//     if (lastClient.connected())
+//         lastClient.stop();
+//     lastClient = client;
 
-//   String response = "HTTP/1.1 200 OK\r\n";
-//   response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
-//   client.print(response);
+//     String response = "HTTP/1.1 200 OK\r\n";
+//     response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
+//     client.print(response);
 
-//   // Create FreeRTOS task
-//   xTaskCreatePinnedToCore(
-//       mjpeg_stream_task,      // task function
-//       "mjpeg_stream_task",    // name
-//       8192,                   // stack size
-//       new WiFiClient(client), // parameters
-//       1,                      // priority
-//       NULL,                   // task handle
-//       1                       // core (use 1 to avoid interfering with WiFi)
-//   );
+//     // Create FreeRTOS task
+//     xTaskCreatePinnedToCore(
+//         mjpeg_stream_task,      // task function
+//         "mjpeg_stream_task",    // name
+//         8192,                   // stack size
+//         new WiFiClient(client), // parameters
+//         1,                      // priority
+//         NULL,                   // task handle
+//         1                       // core (use 1 to avoid interfering with WiFi)
+//     );
 // }
 
 // /**
@@ -176,57 +176,57 @@
 //  */
 // void setup()
 // {
-//   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-//   // put your setup code here, to run once:
-//   Serial.begin(115200);
-//   // comment out the below line to start inference immediately after upload
-//   while (!Serial)
-//     ;
+//     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+//     // put your setup code here, to run once:
+//     Serial.begin(115200);
+//     // comment out the below line to start inference immediately after upload
+//     while (!Serial)
+//         ;
 
-//   if (psramFound())
-//   {
-//     Serial.println("✅ PSRAM is enabled and detected!");
-//     Serial.printf("Free PSRAM: %d bytes\n", ESP.getFreePsram());
-//   }
-//   else
-//   {
-//     Serial.println("❌ PSRAM NOT FOUND! Check board config or hardware.");
-//   }
+//     if (psramFound())
+//     {
+//         Serial.println("✅ PSRAM is enabled and detected!");
+//         Serial.printf("Free PSRAM: %d bytes\n", ESP.getFreePsram());
+//     }
+//     else
+//     {
+//         Serial.println("❌ PSRAM NOT FOUND! Check board config or hardware.");
+//     }
 
-//   fb_mutex = xSemaphoreCreateMutex();
+//     fb_mutex = xSemaphoreCreateMutex();
 
-//   if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
-//   {
-//     Serial.println("STA Failed to configure");
-//   }
+//     if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+//     {
+//         Serial.println("STA Failed to configure");
+//     }
 
-//   WiFi.begin(ssid, password);
-//   Serial.print("Connecting to WiFi");
-//   while (WiFi.status() != WL_CONNECTED)
-//   {
-//     delay(500);
-//     Serial.print(".");
-//   }
-//   Serial.println("\nWiFi connected");
-//   Serial.println(WiFi.localIP());
+//     WiFi.begin(ssid, password);
+//     Serial.print("Connecting to WiFi");
+//     while (WiFi.status() != WL_CONNECTED)
+//     {
+//         delay(500);
+//         Serial.print(".");
+//     }
+//     Serial.println("\nWiFi connected");
+//     Serial.println(WiFi.localIP());
 
-//   // Start Webserver
-//   server.on("/stream", HTTP_GET, handle_jpg_stream);
-//   server.begin();
-//   Serial.println("Web server started at /stream");
+//     // Start Webserver
+//     server.on("/stream", HTTP_GET, handle_jpg_stream);
+//     server.begin();
+//     Serial.println("Web server started at /stream");
 
-//   Serial.println("Edge Impulse Inferencing Demo");
-//   if (ei_camera_init() == false)
-//   {
-//     ei_printf("Failed to initialize Camera!\r\n");
-//   }
-//   else
-//   {
-//     ei_printf("Camera initialized\r\n");
-//   }
+//     Serial.println("Edge Impulse Inferencing Demo");
+//     if (ei_camera_init() == false)
+//     {
+//         ei_printf("Failed to initialize Camera!\r\n");
+//     }
+//     else
+//     {
+//         ei_printf("Camera initialized\r\n");
+//     }
 
-//   ei_printf("\nStarting continious inference in 2 seconds...\n");
-//   ei_sleep(2000);
+//     ei_printf("\nStarting continious inference in 2 seconds...\n");
+//     ei_sleep(2000);
 // }
 
 // /**
@@ -236,78 +236,78 @@
 //  */
 // void loop()
 // {
-//   server.handleClient(); // Handle incoming stream requests
+//     server.handleClient(); // Handle incoming stream requests
 
-//   if (WiFi.status() == WL_CONNECTED)
-//   {
-//     if (ei_sleep(5) != EI_IMPULSE_OK)
+//     if (WiFi.status() == WL_CONNECTED)
 //     {
-//       return;
-//     }
+//         if (ei_sleep(5) != EI_IMPULSE_OK)
+//         {
+//             return;
+//         }
 
-//     // Try to take the camera mutex before doing inference
-//     if (xSemaphoreTake(fb_mutex, (TickType_t)100) == pdTRUE)
-//     {
-//       snapshot_buf = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
+//         // Try to take the camera mutex before doing inference
+//         if (xSemaphoreTake(fb_mutex, (TickType_t)100) == pdTRUE)
+//         {
+//             snapshot_buf = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
 
-//       if (snapshot_buf == nullptr)
-//       {
-//         ei_printf("ERR: Failed to allocate snapshot buffer!\n");
-//         xSemaphoreGive(fb_mutex); // Don't forget to release mutex!
-//         return;
-//       }
+//             if (snapshot_buf == nullptr)
+//             {
+//                 ei_printf("ERR: Failed to allocate snapshot buffer!\n");
+//                 xSemaphoreGive(fb_mutex); // Don't forget to release mutex!
+//                 return;
+//             }
 
-//       ei::signal_t signal;
-//       signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
-//       signal.get_data = &ei_camera_get_data;
+//             ei::signal_t signal;
+//             signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+//             signal.get_data = &ei_camera_get_data;
 
-//       if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false)
-//       {
-//         ei_printf("Failed to capture image\r\n");
-//         free(snapshot_buf);
-//         xSemaphoreGive(fb_mutex);
-//         return;
-//       }
+//             if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false)
+//             {
+//                 ei_printf("Failed to capture image\r\n");
+//                 free(snapshot_buf);
+//                 xSemaphoreGive(fb_mutex);
+//                 return;
+//             }
 
-//       // Run the classifier
-//       ei_impulse_result_t result = {0};
-//       EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
-//       if (err != EI_IMPULSE_OK)
-//       {
-//         ei_printf("ERR: Failed to run classifier (%d)\n", err);
-//         free(snapshot_buf);
-//         xSemaphoreGive(fb_mutex);
-//         return;
-//       }
+//             // Run the classifier
+//             ei_impulse_result_t result = {0};
+//             EI_IMPULSE_ERROR err = run_classifier(&signal, &result, debug_nn);
+//             if (err != EI_IMPULSE_OK)
+//             {
+//                 ei_printf("ERR: Failed to run classifier (%d)\n", err);
+//                 free(snapshot_buf);
+//                 xSemaphoreGive(fb_mutex);
+//                 return;
+//             }
 
-//       // Print results
-//       ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-//                 result.timing.dsp, result.timing.classification, result.timing.anomaly);
+//             // Print results
+//             ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+//                       result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
 // #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-//       for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
-//       {
-//         ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
-//         if (bb.value == 0)
-//           continue;
-//         ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
-//                   bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-//       }
+//             for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
+//             {
+//                 ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
+//                 if (bb.value == 0)
+//                     continue;
+//                 ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
+//                           bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+//             }
 // #else
-//       for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
-//       {
-//         ei_printf("  %s: %.5f\r\n", ei_classifier_inferencing_categories[i], result.classification[i].value);
-//       }
+//             for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+//             {
+//                 ei_printf("  %s: %.5f\r\n", ei_classifier_inferencing_categories[i], result.classification[i].value);
+//             }
 // #endif
 
 // #if EI_CLASSIFIER_HAS_ANOMALY
-//       ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
+//             ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
 // #endif
 
-//       free(snapshot_buf);
-//       xSemaphoreGive(fb_mutex); // Release camera after you're done
+//             free(snapshot_buf);
+//             xSemaphoreGive(fb_mutex); // Release camera after you're done
+//         }
 //     }
-//   }
 // }
 
 // /**
@@ -318,42 +318,42 @@
 // bool ei_camera_init(void)
 // {
 
-//   if (is_initialised)
-//     return true;
+//     if (is_initialised)
+//         return true;
 
 // #if defined(CAMERA_MODEL_ESP_EYE)
-//   pinMode(13, INPUT_PULLUP);
-//   pinMode(14, INPUT_PULLUP);
+//     pinMode(13, INPUT_PULLUP);
+//     pinMode(14, INPUT_PULLUP);
 // #endif
 
-//   // initialize the camera
-//   esp_err_t err = esp_camera_init(&camera_config);
-//   if (err != ESP_OK)
-//   {
-//     Serial.printf("Camera init failed with error 0x%x\n", err);
-//     return false;
-//   }
+//     // initialize the camera
+//     esp_err_t err = esp_camera_init(&camera_config);
+//     if (err != ESP_OK)
+//     {
+//         Serial.printf("Camera init failed with error 0x%x\n", err);
+//         return false;
+//     }
 
-//   sensor_t *s = esp_camera_sensor_get();
-//   // initial sensors are flipped vertically and colors are a bit saturated
-//   if (s->id.PID == OV3660_PID)
-//   {
-//     s->set_vflip(s, 1);      // flip it back
-//     s->set_brightness(s, 1); // up the brightness just a bit
-//     s->set_saturation(s, 0); // lower the saturation
-//   }
+//     sensor_t *s = esp_camera_sensor_get();
+//     // initial sensors are flipped vertically and colors are a bit saturated
+//     if (s->id.PID == OV3660_PID)
+//     {
+//         s->set_vflip(s, 1);      // flip it back
+//         s->set_brightness(s, 1); // up the brightness just a bit
+//         s->set_saturation(s, 0); // lower the saturation
+//     }
 
 // #if defined(CAMERA_MODEL_M5STACK_WIDE)
-//   s->set_vflip(s, 1);
-//   s->set_hmirror(s, 1);
+//     s->set_vflip(s, 1);
+//     s->set_hmirror(s, 1);
 // #elif defined(CAMERA_MODEL_ESP_EYE)
-//   s->set_vflip(s, 1);
-//   s->set_hmirror(s, 1);
-//   s->set_awb_gain(s, 1);
+//     s->set_vflip(s, 1);
+//     s->set_hmirror(s, 1);
+//     s->set_awb_gain(s, 1);
 // #endif
 
-//   is_initialised = true;
-//   return true;
+//     is_initialised = true;
+//     return true;
 // }
 
 // /**
@@ -362,17 +362,17 @@
 // void ei_camera_deinit(void)
 // {
 
-//   // deinitialize the camera
-//   esp_err_t err = esp_camera_deinit();
+//     // deinitialize the camera
+//     esp_err_t err = esp_camera_deinit();
 
-//   if (err != ESP_OK)
-//   {
-//     ei_printf("Camera deinit failed\n");
+//     if (err != ESP_OK)
+//     {
+//         ei_printf("Camera deinit failed\n");
+//         return;
+//     }
+
+//     is_initialised = false;
 //     return;
-//   }
-
-//   is_initialised = false;
-//   return;
 // }
 
 // /**
@@ -388,71 +388,71 @@
 //  */
 // bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 // {
-//   bool do_resize = false;
+//     bool do_resize = false;
 
-//   if (!is_initialised)
-//   {
-//     ei_printf("ERR: Camera is not initialized\r\n");
-//     return false;
-//   }
+//     if (!is_initialised)
+//     {
+//         ei_printf("ERR: Camera is not initialized\r\n");
+//         return false;
+//     }
 
-//   camera_fb_t *fb = esp_camera_fb_get();
+//     camera_fb_t *fb = esp_camera_fb_get();
 
-//   if (!fb)
-//   {
-//     ei_printf("Camera capture failed\n");
-//     return false;
-//   }
+//     if (!fb)
+//     {
+//         ei_printf("Camera capture failed\n");
+//         return false;
+//     }
 
-//   bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
+//     bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, out_buf);
 
-//   esp_camera_fb_return(fb);
+//     esp_camera_fb_return(fb);
 
-//   if (!converted)
-//   {
-//     ei_printf("Conversion failed\n");
-//     return false;
-//   }
+//     if (!converted)
+//     {
+//         ei_printf("Conversion failed\n");
+//         return false;
+//     }
 
-//   if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS))
-//   {
-//     do_resize = true;
-//   }
+//     if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS))
+//     {
+//         do_resize = true;
+//     }
 
-//   if (do_resize)
-//   {
-//     ei::image::processing::crop_and_interpolate_rgb888(
-//         out_buf,
-//         EI_CAMERA_RAW_FRAME_BUFFER_COLS,
-//         EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
-//         out_buf,
-//         img_width,
-//         img_height);
-//   }
+//     if (do_resize)
+//     {
+//         ei::image::processing::crop_and_interpolate_rgb888(
+//             out_buf,
+//             EI_CAMERA_RAW_FRAME_BUFFER_COLS,
+//             EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+//             out_buf,
+//             img_width,
+//             img_height);
+//     }
 
-//   return true;
+//     return true;
 // }
 
 // static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
 // {
-//   // we already have a RGB888 buffer, so recalculate offset into pixel index
-//   size_t pixel_ix = offset * 3;
-//   size_t pixels_left = length;
-//   size_t out_ptr_ix = 0;
+//     // we already have a RGB888 buffer, so recalculate offset into pixel index
+//     size_t pixel_ix = offset * 3;
+//     size_t pixels_left = length;
+//     size_t out_ptr_ix = 0;
 
-//   while (pixels_left != 0)
-//   {
-//     // Swap BGR to RGB here
-//     // due to https://github.com/espressif/esp32-camera/issues/379
-//     out_ptr[out_ptr_ix] = (snapshot_buf[pixel_ix + 2] << 16) + (snapshot_buf[pixel_ix + 1] << 8) + snapshot_buf[pixel_ix];
+//     while (pixels_left != 0)
+//     {
+//         // Swap BGR to RGB here
+//         // due to https://github.com/espressif/esp32-camera/issues/379
+//         out_ptr[out_ptr_ix] = (snapshot_buf[pixel_ix + 2] << 16) + (snapshot_buf[pixel_ix + 1] << 8) + snapshot_buf[pixel_ix];
 
-//     // go to the next pixel
-//     out_ptr_ix++;
-//     pixel_ix += 3;
-//     pixels_left--;
-//   }
-//   // and done!
-//   return 0;
+//         // go to the next pixel
+//         out_ptr_ix++;
+//         pixel_ix += 3;
+//         pixels_left--;
+//     }
+//     // and done!
+//     return 0;
 // }
 
 // #if !defined(EI_CLASSIFIER_SENSOR) || EI_CLASSIFIER_SENSOR != EI_CLASSIFIER_SENSOR_CAMERA

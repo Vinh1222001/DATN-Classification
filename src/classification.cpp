@@ -1,3 +1,4 @@
+#include <Object-detection-ESP32_inferencing.h>
 #include "classification.hpp"
 
 Classification::Classification(Camera *cam, bool debugNn)
@@ -25,6 +26,18 @@ void Classification::taskFn()
 
 void Classification::classify()
 {
+    if (this->camera == nullptr)
+    {
+        ESP_LOGE(this->NAME, "Camera is still null");
+        return;
+    }
+
+    // if (!this->camera->isTaskRunning())
+    // {
+    //     ESP_LOGE(this->NAME, "Camera 's task is not running");
+    //     return;
+    // }
+
     ei::signal_t signal;
     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
     signal.get_data = [&](size_t offset, size_t length, float *out_ptr)
@@ -49,7 +62,14 @@ void Classification::classify()
         for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
         {
             ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
-            this->bb.value.push_back(result.bounding_boxes[i]);
+            ResultBoundingBox bbCopy = {
+                .label = bb.label,
+                .x = bb.x,
+                .y = bb.y,
+                .width = bb.width,
+                .height = bb.height,
+                .value = bb.value};
+            this->bb.value.push_back(bbCopy);
             if (bb.value == 0)
                 continue;
             ESP_LOGI(this->NAME, "  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]",
@@ -69,9 +89,9 @@ void Classification::classify()
 #endif
 }
 
-std::vector<ei_impulse_result_bounding_box_t> Classification::getClassifyResult()
+std::vector<ResultBoundingBox> Classification::getClassifyResult()
 {
-    std::vector<ei_impulse_result_bounding_box_t> result;
+    std::vector<ResultBoundingBox> result;
 
     if (xSemaphoreTake(this->bb.xMutex, portMAX_DELAY) == pdTRUE)
     {

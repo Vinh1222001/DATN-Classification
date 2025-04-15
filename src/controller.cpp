@@ -1,7 +1,12 @@
 #include "controller.hpp"
 
 Controller::Controller()
-    : BaseModule("CONTROLLER")
+    : BaseModule(
+          "CONTROLLER",
+          CONTROLLER_TASK_PRIORITY,
+          CONTROLLER_TASK_DELAY,
+          CONTROLLER_TASK_STACK_DEPTH_LEVEL,
+          CONTROLLER_TASK_PINNED_CORE_ID)
 {
   this->state = INIT;
 }
@@ -66,14 +71,14 @@ bool Controller::init()
   ESP_LOGI(this->NAME, "Initialize components...");
 
   this->camera = new Camera();
-  if (this->camera == nullptr || this->camera->available())
+  if (this->camera == nullptr || !this->camera->available())
   {
     ESP_LOGI(this->NAME, "Failed to create camera");
     return false;
   }
   ESP_LOGI(this->NAME, "Created camera");
 
-  this->classifier = new Classification(camera);
+  this->classifier = new Classification(this->camera);
   if (this->classifier == nullptr)
   {
     ESP_LOGI(this->NAME, "Failed to create Classifier");
@@ -82,7 +87,7 @@ bool Controller::init()
   ESP_LOGI(this->NAME, "Created Classifier");
 
   this->webServer = new RWebServer(camera);
-  if (this->classifier == nullptr)
+  if (this->webServer == nullptr)
   {
     ESP_LOGI(this->NAME, "Failed to create Web Server");
     return false;
@@ -119,6 +124,15 @@ bool Controller::setup()
   this->classifier->createTask();
   delay(2000);
 
+  if (this->webServer == nullptr)
+  {
+    ESP_LOGE(this->NAME, "Web Server is not initialized");
+    return false;
+  }
+  ESP_LOGI(this->NAME, "Creating Web Server's task...");
+  this->webServer->createTask();
+  delay(2000);
+
   ESP_LOGI(this->NAME, "All component have been set up");
   this->setState(READY);
   delay(1000);
@@ -148,7 +162,7 @@ bool Controller::start()
     return false;
   }
   ESP_LOGI(this->NAME, "Running Web Server's task...");
-  this->webServer->startCameraServer();
+  this->webServer->run();
 
   if (this->classifier == nullptr)
   {
@@ -157,6 +171,8 @@ bool Controller::start()
   }
   ESP_LOGI(this->NAME, "Creating Classifier's task...");
   this->classifier->run();
+
+  this->setState(WAITING);
   delay(2000);
 
   return true;

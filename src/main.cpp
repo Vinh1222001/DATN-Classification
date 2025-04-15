@@ -47,6 +47,7 @@ void setup()
         ESP_LOGE(TAG, "Can't init Controller");
         return;
     }
+    delay(2000);
     controller->createTask();
     delay(2000);
     controller->run();

@@ -2,12 +2,14 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
 
-#include <Arduino.h>
+#include "edge-impulse-sdk/dsp/image/image.hpp"
+
+// #include <Arduino.h>
 #include "base_module.hpp"
 #include "types.hpp"
 #include "esp_camera.h"
-#include "edge-impulse-sdk/dsp/image/image.hpp"
-#include <Object-detection-ESP32_inferencing.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
@@ -54,9 +56,9 @@
 #endif
 
 // Các định nghĩa kích thước và frame byte (được sử dụng trong Edge Impulse)
-#define EI_CAMERA_RAW_FRAME_BUFFER_COLS 320
-#define EI_CAMERA_RAW_FRAME_BUFFER_ROWS 240
-#define EI_CAMERA_FRAME_BYTE_SIZE 3
+#define CAMERA_RAW_FRAME_BUFFER_COLS 320
+#define CAMERA_RAW_FRAME_BUFFER_ROWS 240
+#define CAMERA_FRAME_BYTE_SIZE 3
 
 using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
 
@@ -70,14 +72,12 @@ public:
   bool getJpg(
       uint8_t **jpgBuf,
       size_t *jpgLen,
-      size_t snapshotLen = EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
-      size_t width = EI_CAMERA_RAW_FRAME_BUFFER_COLS,
-      size_t height = EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+      size_t snapshotLen = CAMERA_RAW_FRAME_BUFFER_COLS * CAMERA_RAW_FRAME_BUFFER_ROWS,
+      size_t width = CAMERA_RAW_FRAME_BUFFER_COLS,
+      size_t height = CAMERA_RAW_FRAME_BUFFER_ROWS,
       pixformat_t format = PIXFORMAT_JPEG);
 
   bool available();
-
-  void taskFn() override;
 
 private:
   bool isInitialized;
@@ -86,6 +86,7 @@ private:
 
   bool init();
   void deinit();
+  void taskFn() override;
 
   bool capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf);
 };

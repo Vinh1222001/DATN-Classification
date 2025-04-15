@@ -2,32 +2,24 @@
 #ifndef WEB_SERVER_HPP
 #define WEB_SERVER_HPP
 
-#include "global.hpp"
-#include "esp_http_server.h"
+#include "base_module.hpp"
+#include "camera.hpp"
+// #include "esp_http_server.h"
+#include <WebServer.h>
 
-#define PART_BOUNDARY "123456789000000000000987654321"
 class RWebServer : public BaseModule
 {
 private:
-  const char *_STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
-  const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
-  const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
+    Camera *camera = nullptr;
+    WebServer *server = nullptr;
 
-  Camera *camera = nullptr;
+    void onStream();
 
-  httpd_handle_t streamHttpd = NULL;
-
-  esp_err_t streamHandler(httpd_req_t *req);
-
-  static esp_err_t streamHandlerWrapper(httpd_req_t *req);
-
-  void taskFn() override;
+    void taskFn() override;
 
 public:
-  RWebServer(Camera *cam);
-  ~RWebServer();
-
-  void startCameraServer();
+    RWebServer(Camera *cam);
+    ~RWebServer();
 };
 
 #endif

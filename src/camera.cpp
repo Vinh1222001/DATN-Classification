@@ -1,5 +1,4 @@
 #include "camera.hpp"
-
 // Constructor: Khởi tạo cấu hình camera theo model đã định nghĩa (ví dụ: AI THINKER)
 Camera::Camera()
     : BaseModule(
@@ -10,6 +9,8 @@ Camera::Camera()
           CAMERA_TASK_PINNED_CORE_ID),
       isInitialized(false)
 {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   // Thiết lập cấu hình camera dựa vào các macro định nghĩa từ file camera_pins.h
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
@@ -38,7 +39,7 @@ Camera::Camera()
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = FRAMESIZE_QVGA;
   config.jpeg_quality = 12;
-  config.fb_count = 1;
+  config.fb_count = 2;
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
@@ -82,6 +83,11 @@ bool Camera::init()
   if (isInitialized)
     return true;
 
+#if defined(CAMERA_MODEL_ESP_EYE)
+  pinMode(13, INPUT_PULLUP);
+  pinMode(14, INPUT_PULLUP);
+#endif
+
   esp_err_t err = esp_camera_init(&this->config);
   if (err != ESP_OK)
   {
@@ -98,7 +104,15 @@ bool Camera::init()
     s->set_saturation(s, 0);
   }
 
-  this->isInitialized = true;
+#if defined(CAMERA_MODEL_M5STACK_WIDE)
+  s->set_vflip(s, 1);
+  s->set_hmirror(s, 1);
+#elif defined(CAMERA_MODEL_ESP_EYE)
+  s->set_vflip(s, 1);
+  s->set_hmirror(s, 1);
+  s->set_awb_gain(s, 1);
+#endif
+
   return true;
 }
 
@@ -115,6 +129,7 @@ void Camera::deinit()
 
 bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 {
+  ESP_LOGI(this->NAME, "Capture Processing...");
   bool do_resize = false;
   if (!isInitialized)
   {
@@ -140,7 +155,7 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
   }
 
   // Nếu kích thước ảnh đã capture khác với yêu cầu, cần crop và nội suy (resize)
-  if ((img_width != EI_CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != EI_CAMERA_RAW_FRAME_BUFFER_ROWS))
+  if ((img_width != CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != CAMERA_RAW_FRAME_BUFFER_ROWS))
   {
     do_resize = true;
   }
@@ -149,8 +164,8 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
   {
     ei::image::processing::crop_and_interpolate_rgb888(
         out_buf,
-        EI_CAMERA_RAW_FRAME_BUFFER_COLS,
-        EI_CAMERA_RAW_FRAME_BUFFER_ROWS,
+        CAMERA_RAW_FRAME_BUFFER_COLS,
+        CAMERA_RAW_FRAME_BUFFER_ROWS,
         out_buf,
         img_width,
         img_height);
@@ -195,7 +210,7 @@ void Camera::taskFn()
 
   if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
   {
-    this->snapshotBuffer.value = (uint8_t *)malloc(EI_CAMERA_RAW_FRAME_BUFFER_COLS * EI_CAMERA_RAW_FRAME_BUFFER_ROWS * EI_CAMERA_FRAME_BYTE_SIZE);
+    this->snapshotBuffer.value = (uint8_t *)malloc(CAMERA_RAW_FRAME_BUFFER_COLS * CAMERA_RAW_FRAME_BUFFER_ROWS * CAMERA_FRAME_BYTE_SIZE);
     if (this->snapshotBuffer.value == nullptr)
     {
       ESP_LOGE(this->NAME, "Allocation failed");
@@ -203,7 +218,7 @@ void Camera::taskFn()
       return;
     }
 
-    if (!this->capture(EI_CAMERA_RAW_FRAME_BUFFER_COLS, EI_CAMERA_RAW_FRAME_BUFFER_ROWS, this->snapshotBuffer.value))
+    if (!this->capture(CAMERA_RAW_FRAME_BUFFER_COLS, CAMERA_RAW_FRAME_BUFFER_ROWS, this->snapshotBuffer.value))
     {
       ESP_LOGE(this->NAME, "Failed to capture image");
       free(this->snapshotBuffer.value);
@@ -212,7 +227,7 @@ void Camera::taskFn()
     }
     free(this->snapshotBuffer.value);
 
-    xSemaphoreGive(this->snapshotBuffer.value);
+    xSemaphoreGive(this->snapshotBuffer.xMutex);
   }
 }
 
@@ -226,20 +241,22 @@ bool Camera::getJpg(
 {
   bool success = false;
 
-  xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY);
-  if (this->snapshotBuffer.value)
+  if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
   {
-    // giả sử snapshot_fb là frame RGB565 hoặc GRAYSCALE (không phải JPEG)
-    camera_fb_t fake_fb = {
-        .buf = this->snapshotBuffer.value,
-        .len = snapshotLen,
-        .width = width,
-        .height = height,
-        .format = format};
+    if (this->snapshotBuffer.value)
+    {
+      // giả sử snapshot_fb là frame RGB565 hoặc GRAYSCALE (không phải JPEG)
+      camera_fb_t fake_fb = {
+          .buf = this->snapshotBuffer.value,
+          .len = snapshotLen,
+          .width = width,
+          .height = height,
+          .format = format};
 
-    success = frame2jpg(&fake_fb, 80, jpgBuf, jpgLen);
+      success = frame2jpg(&fake_fb, 80, jpgBuf, jpgLen);
+    }
+    xSemaphoreGive(this->snapshotBuffer.xMutex);
   }
-  xSemaphoreGive(this->snapshotBuffer.xMutex);
 
   return success;
 }
