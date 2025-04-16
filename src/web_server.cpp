@@ -31,14 +31,11 @@ void RWebServer::taskFn()
 
 void RWebServer::onStream()
 {
-    uint8_t *_jpg_buf = NULL;
-    size_t _jpg_buf_len = 0;
     WiFiClient client = this->server->client();
     String response = "HTTP/1.1 200 OK\r\n";
     response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
     client.print(response);
 
-    ESP_LOGI(this->NAME, "Start handle request...");
     while (client.connected())
     {
         if (this->camera == nullptr)
@@ -47,20 +44,18 @@ void RWebServer::onStream()
             continue;
         }
 
-        ESP_LOGI(this->NAME, "Get Jpg processing...");
         camera_fb_t *fb = esp_camera_fb_get();
         if (!fb)
         {
             continue;
         }
 
-        ESP_LOGI(this->NAME, "Client send processing...");
         client.print("--frame\r\n");
         client.print("Content-Type: image/jpeg\r\n\r\n");
         client.write(fb->buf, fb->len);
         client.print("\r\n");
         esp_camera_fb_return(fb);
-        delay(100);
+        delay(RWEB_SERVER_TASK_DELAY);
     }
 
     client.stop();

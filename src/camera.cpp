@@ -11,8 +11,6 @@ Camera::Camera()
       isInitialized(false),
       debugNn(false)
 {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-
   // Thiết lập cấu hình camera dựa vào các macro định nghĩa từ file camera_pins.h
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
@@ -275,32 +273,33 @@ void Camera::taskFn()
   }
 }
 
-bool Camera::getJpg(
-    uint8_t **jpgBuf,
-    size_t *jpgLen,
-    size_t snapshotLen,
-    size_t width,
-    size_t height,
-    pixformat_t format)
+bool Camera::getJpg(uint8_t **jpgBuf, size_t *jpgLen)
 {
   bool success = false;
 
-  if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
-  {
-    if (this->snapshotBuffer.value)
-    {
-      // giả sử snapshot_fb là frame RGB565 hoặc GRAYSCALE (không phải JPEG)
-      camera_fb_t fake_fb = {
-          .buf = this->snapshotBuffer.value,
-          .len = snapshotLen,
-          .width = width,
-          .height = height,
-          .format = format};
+  // if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
+  // {
+  //   if (this->snapshotBuffer.value)
+  //   {
+  //     // giả sử snapshot_fb là frame RGB565 hoặc GRAYSCALE (không phải JPEG)
+  //     camera_fb_t fake_fb = {
+  //         .buf = this->snapshotBuffer.value,
+  //         .len = snapshotLen,
+  //         .width = width,
+  //         .height = height,
+  //         .format = format};
 
-      success = frame2jpg(&fake_fb, 80, jpgBuf, jpgLen);
-    }
-    xSemaphoreGive(this->snapshotBuffer.xMutex);
+  //     success = frame2jpg(&fake_fb, 80, jpgBuf, jpgLen);
+  //   }
+  //   xSemaphoreGive(this->snapshotBuffer.xMutex);
+  // }
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb)
+  {
+    return false;
   }
+  success = frame2jpg(fb, 80, jpgBuf, jpgLen);
+  esp_camera_fb_return(fb);
 
   return success;
 }

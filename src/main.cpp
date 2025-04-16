@@ -10,6 +10,7 @@ IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
 void setup()
 {
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
     ESP_LOGI(TAG, "Set up Serial...");
     Serial.begin(CONFIG_MONITOR_BAUD);
     while (!Serial)

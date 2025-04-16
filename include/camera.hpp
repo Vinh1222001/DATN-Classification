@@ -69,13 +69,7 @@ public:
   ~Camera();
 
   int getData(size_t offset, size_t length, float *out_ptr);
-  bool getJpg(
-      uint8_t **jpgBuf,
-      size_t *jpgLen,
-      size_t snapshotLen = CAMERA_RAW_FRAME_BUFFER_COLS * CAMERA_RAW_FRAME_BUFFER_ROWS,
-      size_t width = CAMERA_RAW_FRAME_BUFFER_COLS,
-      size_t height = CAMERA_RAW_FRAME_BUFFER_ROWS,
-      pixformat_t format = PIXFORMAT_JPEG);
+  bool getJpg(uint8_t **jpgBuf, size_t *jpgLen);
 
   bool available();
 
