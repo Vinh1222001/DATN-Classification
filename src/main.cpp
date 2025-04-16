@@ -1,13 +1,21 @@
-#include <Arduino.h>
 #include "main.hpp"
+
+const char *TAG = "SET_UP";
+
+IPAddress localIP(192, 168, 2, 200); // <--- Your desired static IP
+IPAddress gateway(192, 168, 2, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);   // optional
+IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
 void setup()
 {
-    ESP_LOGI("SET UP", "Set up Serial...");
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+    ESP_LOGI(TAG, "Set up Serial...");
     Serial.begin(CONFIG_MONITOR_BAUD);
     while (!Serial)
     {
-        ESP_LOGE("SET UP", "Serial is not found!\n");
+        ESP_LOGE(TAG, "Serial is not found!\n");
         delay(10);
     }
 
@@ -22,30 +30,28 @@ void setup()
     log_w("Warning");
     log_e("Error");
 
-    ESP_LOGI("SET UP", "Initializing...\n");
+    ESP_LOGI(TAG, "Initializing...\n");
 
-    if (!WifiUtil::initWifi(WIFI_SSID, WIFI_PASSWORD, true))
-    {
-        ESP_LOGE(WifiUtil::TAG, "Can't connect to wifif");
-        while (true)
-        {
-            delay(1000);
-        }
-    }
+    WifiUtil::initWifi(
+        WIFI_SSID,
+        WIFI_PASSWORD,
+        true,
+        localIP,
+        gateway,
+        subnet,
+        primaryDNS,
+        secondaryDNS);
+    Controller *controller = new Controller();
 
-    Communicate *communicate = new Communicate();
-
-    if (communicate->begin())
+    if (controller == nullptr)
     {
-        ESP_LOGI("ESP32 B", "ESP-NOW Init   ialized Successfully");
-        std::vector<String> stringArray = {"Xin chào", "ESP", "NOW"};
-        // Gửi message đến ESP32 B
-        communicate->send(stringArray);
+        ESP_LOGE(TAG, "Can't init Controller");
+        return;
     }
-    else
-    {
-        ESP_LOGE("ESP32 B", "Failed to initialize ESP-NOW");
-    }
+    delay(2000);
+    controller->createTask();
+    delay(2000);
+    controller->run();
 }
 
 void loop() {}
