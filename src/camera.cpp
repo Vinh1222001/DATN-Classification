@@ -1,4 +1,5 @@
 #include "camera.hpp"
+#include <Object-detection-ESP32_inferencing.h>
 // Constructor: Khởi tạo cấu hình camera theo model đã định nghĩa (ví dụ: AI THINKER)
 Camera::Camera()
     : BaseModule(
@@ -7,7 +8,8 @@ Camera::Camera()
           0,
           CAMERA_TASK_STACK_DEPTH_LEVEL,
           CAMERA_TASK_PINNED_CORE_ID),
-      isInitialized(false)
+      isInitialized(false),
+      debugNn(false)
 {
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
@@ -130,7 +132,7 @@ void Camera::deinit()
 bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 {
   ESP_LOGI(this->NAME, "Capture Processing...");
-  bool do_resize = false;
+  bool doResize = false;
   if (!isInitialized)
   {
     ESP_LOGE(this->NAME, "ERR: Camera is not initialized");
@@ -157,10 +159,10 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
   // Nếu kích thước ảnh đã capture khác với yêu cầu, cần crop và nội suy (resize)
   if ((img_width != CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != CAMERA_RAW_FRAME_BUFFER_ROWS))
   {
-    do_resize = true;
+    doResize = true;
   }
 
-  if (do_resize)
+  if (doResize)
   {
     ei::image::processing::crop_and_interpolate_rgb888(
         out_buf,
@@ -176,28 +178,28 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 
 int Camera::getData(size_t offset, size_t length, float *out_ptr)
 {
-  if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
+  // if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
+  // {
+  if (this->snapshotBuffer.value == nullptr)
   {
-    if (this->snapshotBuffer.value == nullptr)
-    {
-      ESP_LOGE(this->NAME, "No snapshot buffer available");
-      xSemaphoreGive(this->snapshotBuffer.xMutex);
-      return -1;
-    }
-    // Mỗi pixel có 3 byte (RGB)
-    size_t pixel_ix = offset * 3;
-    size_t pixels_left = length;
-    size_t out_ptr_ix = 0;
-    while (pixels_left != 0)
-    {
-      // Swap từ định dạng BGR sang RGB nếu cần, theo thông báo về bug của esp32-camera.
-      out_ptr[out_ptr_ix] = (this->snapshotBuffer.value[pixel_ix + 2] << 16) + (this->snapshotBuffer.value[pixel_ix + 1] << 8) + this->snapshotBuffer.value[pixel_ix];
-      out_ptr_ix++;
-      pixel_ix += 3;
-      pixels_left--;
-    }
+    ESP_LOGE(this->NAME, "No snapshot buffer available");
     xSemaphoreGive(this->snapshotBuffer.xMutex);
+    return -1;
   }
+  // Mỗi pixel có 3 byte (RGB)
+  size_t pixel_ix = offset * 3;
+  size_t pixels_left = length;
+  size_t out_ptr_ix = 0;
+  while (pixels_left != 0)
+  {
+    // Swap từ định dạng BGR sang RGB nếu cần, theo thông báo về bug của esp32-camera.
+    out_ptr[out_ptr_ix] = (this->snapshotBuffer.value[pixel_ix + 2] << 16) + (this->snapshotBuffer.value[pixel_ix + 1] << 8) + this->snapshotBuffer.value[pixel_ix];
+    out_ptr_ix++;
+    pixel_ix += 3;
+    pixels_left--;
+  }
+  //   xSemaphoreGive(this->snapshotBuffer.xMutex);
+  // }
   return 0;
 }
 
@@ -214,9 +216,17 @@ void Camera::taskFn()
     if (this->snapshotBuffer.value == nullptr)
     {
       ESP_LOGE(this->NAME, "Allocation failed");
+      free(this->snapshotBuffer.value);
       xSemaphoreGive(this->snapshotBuffer.xMutex);
       return;
     }
+
+    ei::signal_t signal;
+    signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
+    signal.get_data = [&](size_t offset, size_t length, float *out_ptr)
+    {
+      return this->getData(offset, length, out_ptr);
+    };
 
     if (!this->capture(CAMERA_RAW_FRAME_BUFFER_COLS, CAMERA_RAW_FRAME_BUFFER_ROWS, this->snapshotBuffer.value))
     {
@@ -225,6 +235,40 @@ void Camera::taskFn()
       xSemaphoreGive(this->snapshotBuffer.xMutex);
       return;
     }
+
+    ei_impulse_result_t result = {0};
+    EI_IMPULSE_ERROR err = run_classifier(&signal, &result, this->debugNn);
+    if (err != EI_IMPULSE_OK)
+    {
+      ei_printf("ERR: Failed to run classifier (%d)\n", err);
+      free(this->snapshotBuffer.value);
+      xSemaphoreGive(this->snapshotBuffer.value);
+      return;
+    }
+
+    ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+              result.timing.dsp, result.timing.classification, result.timing.anomaly);
+
+#if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
+    {
+      ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
+      if (bb.value == 0)
+        continue;
+      ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
+                bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+    }
+#else
+    for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
+    {
+      ei_printf("  %s: %.5f\r\n", ei_classifier_inferencing_categories[i], result.classification[i].value);
+    }
+#endif
+
+#if EI_CLASSIFIER_HAS_ANOMALY
+    ei_printf("Anomaly prediction: %.3f\r\n", result.anomaly);
+#endif
+
     free(this->snapshotBuffer.value);
 
     xSemaphoreGive(this->snapshotBuffer.xMutex);

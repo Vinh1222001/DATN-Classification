@@ -5,7 +5,7 @@
 // #include <Arduino.h>
 #include "base_module.hpp"
 #include "camera.hpp"
-#include "classification.hpp"
+// #include "classification.hpp"
 #include "web_server.hpp"
 
 enum RobotState
@@ -26,7 +26,7 @@ private:
     RobotState state;
 
     Camera *camera;
-    Classification *classifier;
+    // Classification *classifier;
     RWebServer *webServer;
 
     void taskFn() override;

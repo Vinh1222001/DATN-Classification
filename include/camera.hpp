@@ -81,6 +81,7 @@ public:
 
 private:
   bool isInitialized;
+  bool debugNn;
   camera_config_t config;
   SnapshotBuffer snapshotBuffer;
 

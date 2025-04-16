@@ -78,13 +78,13 @@ bool Controller::init()
   }
   ESP_LOGI(this->NAME, "Created camera");
 
-  this->classifier = new Classification(this->camera);
-  if (this->classifier == nullptr)
-  {
-    ESP_LOGI(this->NAME, "Failed to create Classifier");
-    return false;
-  }
-  ESP_LOGI(this->NAME, "Created Classifier");
+  // this->classifier = new Classification(this->camera);
+  // if (this->classifier == nullptr)
+  // {
+  //   ESP_LOGI(this->NAME, "Failed to create Classifier");
+  //   return false;
+  // }
+  // ESP_LOGI(this->NAME, "Created Classifier");
 
   this->webServer = new RWebServer(camera);
   if (this->webServer == nullptr)
@@ -115,14 +115,14 @@ bool Controller::setup()
   this->camera->createTask();
   delay(2000);
 
-  if (this->classifier == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Classifier is not initialized");
-    return false;
-  }
-  ESP_LOGI(this->NAME, "Creating Classifier's task...");
-  this->classifier->createTask();
-  delay(2000);
+  // if (this->classifier == nullptr)
+  // {
+  //   ESP_LOGE(this->NAME, "Classifier is not initialized");
+  //   return false;
+  // }
+  // ESP_LOGI(this->NAME, "Creating Classifier's task...");
+  // this->classifier->createTask();
+  // delay(2000);
 
   if (this->webServer == nullptr)
   {
@@ -164,13 +164,13 @@ bool Controller::start()
   ESP_LOGI(this->NAME, "Running Web Server's task...");
   this->webServer->run();
 
-  if (this->classifier == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Classifier is not initialized");
-    return false;
-  }
-  ESP_LOGI(this->NAME, "Creating Classifier's task...");
-  this->classifier->run();
+  // if (this->classifier == nullptr)
+  // {
+  //   ESP_LOGE(this->NAME, "Classifier is not initialized");
+  //   return false;
+  // }
+  // ESP_LOGI(this->NAME, "Creating Classifier's task...");
+  // this->classifier->run();
 
   this->setState(WAITING);
   delay(2000);
