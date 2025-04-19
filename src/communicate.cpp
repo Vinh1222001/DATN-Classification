@@ -8,6 +8,7 @@ Communicate::Communicate()
     : BaseModule("COMMUNICATE")
 {
     instance = this;
+    this->receiveMsg.xMutex = xSemaphoreCreateMutex();
     this->begin();
 }
 
@@ -97,11 +98,25 @@ void Communicate::onDataRecv(const uint8_t *mac, const uint8_t *incomingData, in
     const Types::EspNowMessage *packet = reinterpret_cast<const Types::EspNowMessage *>(incomingData);
     ESP_LOGI(this->NAME, "Data Received: Id: %s, value: %d", packet->id, packet->content);
 
-    if (packet->content)
+    if (xSemaphoreTake(this->receiveMsg.xMutex, portMAX_DELAY) == pdTRUE)
     {
-        std::vector<String> stringArray = {"Xin chào", "ESP", "NOW"};
-        send(stringArray);
+        this->receiveMsg.value = String(packet->content);
+        xSemaphoreGive(this->receiveMsg.xMutex);
     }
 }
 
 void Communicate::taskFn() {}
+
+String Communicate::getReceiveMsg()
+{
+    String msg;
+    if (xSemaphoreTake(this->receiveMsg.xMutex, portMAX_DELAY) == pdTRUE)
+    {
+        if (this->receiveMsg.value.length() > 0)
+        {
+            msg = this->receiveMsg.value;
+        }
+        xSemaphoreGive(this->receiveMsg.xMutex);
+    }
+    return msg;
+}

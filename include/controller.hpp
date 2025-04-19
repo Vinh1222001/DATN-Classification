@@ -2,11 +2,10 @@
 #ifndef CONTROLLER_HPP
 #define CONTROLLER_HPP
 
-// #include <Arduino.h>
 #include "base_module.hpp"
 #include "camera.hpp"
-// #include "classification.hpp"
 #include "web_server.hpp"
+#include "communicate.hpp"
 
 enum RobotState
 {
@@ -25,8 +24,8 @@ class Controller : public BaseModule
 private:
     RobotState state;
 
+    Communicate *communicate;
     Camera *camera;
-    // Classification *classifier;
     RWebServer *webServer;
 
     void taskFn() override;

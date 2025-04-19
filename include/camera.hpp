@@ -8,8 +8,7 @@
 #include "base_module.hpp"
 #include "types.hpp"
 #include "esp_camera.h"
-#include "soc/soc.h"
-#include "soc/rtc_cntl_reg.h"
+#include "communicate.hpp"
 
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
@@ -61,11 +60,12 @@
 #define CAMERA_FRAME_BYTE_SIZE 3
 
 using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
+using ClassifyState = Types::SemaphoreMutexData<bool>;
 
 class Camera : public BaseModule
 {
 public:
-  Camera();
+  Camera(Communicate *communicate = nullptr);
   ~Camera();
 
   int getData(size_t offset, size_t length, float *out_ptr);
@@ -73,11 +73,18 @@ public:
 
   bool available();
 
+  bool getIsClassifying();
+  void startClassifying();
+  void stopClassifying();
+
 private:
   bool isInitialized;
   bool debugNn;
   camera_config_t config;
   SnapshotBuffer snapshotBuffer;
+  Communicate *communicate;
+
+  ClassifyState isClassifying;
 
   bool init();
   void deinit();

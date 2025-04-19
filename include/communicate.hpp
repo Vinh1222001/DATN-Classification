@@ -10,17 +10,21 @@
 #include <WiFi.h>
 #include "esp_log.h"
 
+using Message = Types::SemaphoreMutexData<String>;
+
 class Communicate : public BaseModule
 {
 public:
     Communicate();
     ~Communicate();
-    bool begin();
     bool send(const std::vector<String> &data);
+    String getReceiveMsg();
 
 private:
     static Communicate *instance; // Static pointer to the current instance
     const uint8_t peerMac[6] = {0x48, 0xe7, 0x29, 0x99, 0x32, 0x04};
+
+    Message receiveMsg;
 
     // Static callbacks
     static void onDataSentStatic(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -30,6 +34,7 @@ private:
     void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
     void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 
+    bool begin();
     void taskFn() override;
 };
 

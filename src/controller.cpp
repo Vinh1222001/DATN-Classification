@@ -70,21 +70,21 @@ bool Controller::init()
 {
   ESP_LOGI(this->NAME, "Initialize components...");
 
-  this->camera = new Camera();
+  this->communicate = new Communicate();
+  if (this->communicate == nullptr)
+  {
+    ESP_LOGI(this->NAME, "Failed to create Communicate");
+    return false;
+  }
+  ESP_LOGI(this->NAME, "Created Communicate");
+
+  this->camera = new Camera(communicate);
   if (this->camera == nullptr || !this->camera->available())
   {
     ESP_LOGI(this->NAME, "Failed to create camera");
     return false;
   }
   ESP_LOGI(this->NAME, "Created camera");
-
-  // this->classifier = new Classification(this->camera);
-  // if (this->classifier == nullptr)
-  // {
-  //   ESP_LOGI(this->NAME, "Failed to create Classifier");
-  //   return false;
-  // }
-  // ESP_LOGI(this->NAME, "Created Classifier");
 
   this->webServer = new RWebServer(camera);
   if (this->webServer == nullptr)
@@ -111,18 +111,10 @@ bool Controller::setup()
     ESP_LOGE(this->NAME, "Camera is not initialized");
     return false;
   }
+  this->camera->stopClassifying();
   ESP_LOGI(this->NAME, "Creating Camera's task...");
   this->camera->createTask();
   delay(2000);
-
-  // if (this->classifier == nullptr)
-  // {
-  //   ESP_LOGE(this->NAME, "Classifier is not initialized");
-  //   return false;
-  // }
-  // ESP_LOGI(this->NAME, "Creating Classifier's task...");
-  // this->classifier->createTask();
-  // delay(2000);
 
   if (this->webServer == nullptr)
   {
@@ -141,8 +133,21 @@ bool Controller::setup()
 
 bool Controller::ready()
 {
-  this->setState(START);
-  return true;
+  String response = this->communicate->getReceiveMsg();
+
+  if (response.compareTo("PING") == 0)
+  {
+    ESP_LOGI(this->NAME, "Connection is Ok! Received message: %s", response.c_str());
+    std::vector<String> msg;
+    msg.push_back("OK");
+    this->communicate->send(msg);
+    this->setState(START);
+    delay(1000);
+    return true;
+  }
+  ESP_LOGE(this->NAME, "Connection Failed! Received message: %s", response.c_str());
+  delay(1000);
+  return false;
 }
 
 bool Controller::start()
@@ -180,12 +185,32 @@ bool Controller::start()
 
 bool Controller::waiting()
 {
-  return true;
+  String response = this->communicate->getReceiveMsg();
+  if (response.compareTo("CLASSIFY") == 0)
+  {
+    ESP_LOGI(this->NAME, "Starting to Classify...");
+    this->camera->startClassifying();
+    this->setState(CLASSIFY);
+    return true;
+  }
+
+  return false;
 }
 
 bool Controller::classify()
 {
-  return true;
+  String response = this->communicate->getReceiveMsg();
+  if (response.compareTo("STOP_CLASSIFY") == 0)
+  {
+    ESP_LOGI(this->NAME, "Stop Classify, Return to Waiting state");
+    this->camera->stopClassifying();
+    this->setState(WAITING);
+    delay(1000);
+    return true;
+  }
+
+  ESP_LOGI(this->NAME, "Message: %s, Continue Classifying...", response.c_str());
+  return false;
 }
 
 bool Controller::response()

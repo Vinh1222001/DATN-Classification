@@ -1,13 +1,14 @@
 #include "camera.hpp"
 #include <Object-detection-ESP32_inferencing.h>
 // Constructor: Khởi tạo cấu hình camera theo model đã định nghĩa (ví dụ: AI THINKER)
-Camera::Camera()
+Camera::Camera(Communicate *communicate)
     : BaseModule(
           "CAMERA",
           CAMERA_TASK_PRIORITY,
           0,
           CAMERA_TASK_STACK_DEPTH_LEVEL,
           CAMERA_TASK_PINNED_CORE_ID),
+      communicate(communicate),
       isInitialized(false),
       debugNn(false)
 {
@@ -45,6 +46,9 @@ Camera::Camera()
 
   this->snapshotBuffer.value = nullptr;
   this->snapshotBuffer.xMutex = xSemaphoreCreateMutex();
+
+  this->isClassifying.value = false;
+  this->isClassifying.xMutex = xSemaphoreCreateMutex();
 
   if (psramFound())
   {
@@ -97,7 +101,7 @@ bool Camera::init()
 
   sensor_t *s = esp_camera_sensor_get();
   // Nếu cảm biến là OV3660, điều chỉnh một số thông số
-  if (s->id.PID == OV3660_PID)
+  if (s->id.PID == OV3660_PID || s->id.PID == OV2640_PID)
   {
     s->set_vflip(s, 1);
     s->set_brightness(s, 1);
@@ -208,6 +212,12 @@ void Camera::taskFn()
     return;
   }
 
+  if (!this->getIsClassifying())
+  {
+    ESP_LOGI(this->NAME, "Don't need to Classify");
+    return;
+  }
+
   if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
   {
     this->snapshotBuffer.value = (uint8_t *)malloc(CAMERA_RAW_FRAME_BUFFER_COLS * CAMERA_RAW_FRAME_BUFFER_ROWS * CAMERA_FRAME_BYTE_SIZE);
@@ -226,7 +236,7 @@ void Camera::taskFn()
       return this->getData(offset, length, out_ptr);
     };
 
-    if (!this->capture(CAMERA_RAW_FRAME_BUFFER_COLS, CAMERA_RAW_FRAME_BUFFER_ROWS, this->snapshotBuffer.value))
+    if (!this->capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, this->snapshotBuffer.value))
     {
       ESP_LOGE(this->NAME, "Failed to capture image");
       free(this->snapshotBuffer.value);
@@ -248,14 +258,25 @@ void Camera::taskFn()
               result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
+    // if (result.bounding_boxes_count < 1)
+    // {
+    //   free(this->snapshotBuffer.value);
+    //   xSemaphoreGive(this->snapshotBuffer.xMutex);
+    //   return;
+    // }
+    std::vector<String> message;
+    message.push_back("CLASSIFY");
+    ei_printf("Object detection bounding boxes:\r\n");
     for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
     {
       ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
       if (bb.value == 0)
         continue;
+      message.push_back(String("Label:") + String(bb.label));
       ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
                 bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
     }
+    this->communicate->send(message);
 #else
     for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
     {
@@ -307,4 +328,39 @@ bool Camera::getJpg(uint8_t **jpgBuf, size_t *jpgLen)
 bool Camera::available()
 {
   return this->isInitialized;
+}
+
+bool Camera::getIsClassifying()
+{
+  bool status = false;
+  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
+  {
+    status = this->isClassifying.value;
+    xSemaphoreGive(this->isClassifying.xMutex);
+  }
+  return status;
+}
+
+void Camera::startClassifying()
+{
+  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
+  {
+    if (!this->isClassifying.value)
+    {
+      this->isClassifying.value = true;
+    }
+    xSemaphoreGive(this->isClassifying.xMutex);
+  }
+}
+
+void Camera::stopClassifying()
+{
+  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
+  {
+    if (this->isClassifying.value)
+    {
+      this->isClassifying.value = false;
+    }
+    xSemaphoreGive(this->isClassifying.xMutex);
+  }
 }
