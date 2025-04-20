@@ -101,7 +101,7 @@ bool Camera::init()
 
   sensor_t *s = esp_camera_sensor_get();
   // Nếu cảm biến là OV3660, điều chỉnh một số thông số
-  if (s->id.PID == OV3660_PID || s->id.PID == OV2640_PID)
+  if (s->id.PID == OV3660_PID)
   {
     s->set_vflip(s, 1);
     s->set_brightness(s, 1);
@@ -258,25 +258,24 @@ void Camera::taskFn()
               result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-    // if (result.bounding_boxes_count < 1)
-    // {
-    //   free(this->snapshotBuffer.value);
-    //   xSemaphoreGive(this->snapshotBuffer.xMutex);
-    //   return;
-    // }
-    std::vector<String> message;
-    message.push_back("CLASSIFY");
+    if (result.bounding_boxes_count < 1)
+    {
+      free(this->snapshotBuffer.value);
+      xSemaphoreGive(this->snapshotBuffer.xMutex);
+      return;
+    }
     ei_printf("Object detection bounding boxes:\r\n");
     for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
     {
       ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
+
       if (bb.value == 0)
         continue;
-      message.push_back(String("Label:") + String(bb.label));
       ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
                 bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+
+      this->samples.push_back(bb);
     }
-    this->communicate->send(message);
 #else
     for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
     {
@@ -291,6 +290,11 @@ void Camera::taskFn()
     free(this->snapshotBuffer.value);
 
     xSemaphoreGive(this->snapshotBuffer.xMutex);
+
+    if (this->samples.size() > OBJECT_SAMPLE_COUNTS)
+    {
+      this->stopClassifying();
+    }
   }
 }
 
@@ -363,4 +367,70 @@ void Camera::stopClassifying()
     }
     xSemaphoreGive(this->isClassifying.xMutex);
   }
+}
+
+String Camera::getConclude()
+{
+  std::vector<ei_impulse_result_bounding_box_t> uniqueObjects = Camera::getUniqueObjectsWithMaxValue(this->samples);
+
+  ei_impulse_result_bounding_box_t conclude;
+  for (uint32_t i = 0; i < uniqueObjects.size(); i++)
+  {
+    if (i <= 0)
+    {
+      conclude = uniqueObjects[i];
+    }
+    else
+    {
+      if (conclude.value < uniqueObjects[i].value)
+      {
+        conclude = uniqueObjects[i];
+      }
+    }
+  }
+
+  if (conclude.value > 0.5)
+  {
+    char buffer[100];
+    sprintf(
+        buffer,
+        "%s,%.2f,%u,%u,%u,%u",
+        conclude.label,
+        conclude.value,
+        conclude.x,
+        conclude.y,
+        conclude.width,
+        conclude.height);
+    return String(buffer);
+  }
+
+  return String("NOT_FOUND");
+}
+
+std::vector<ei_impulse_result_bounding_box_t> Camera::getUniqueObjectsWithMaxValue(
+    const std::vector<ei_impulse_result_bounding_box_t> &samples)
+{
+
+  std::map<std::string, ei_impulse_result_bounding_box_t> labelToBoxMap;
+
+  for (const auto &box : samples)
+  {
+    std::string labelStr = std::string(box.label);
+
+    // Nếu label chưa tồn tại hoặc value lớn hơn, cập nhật
+    if (labelToBoxMap.find(labelStr) == labelToBoxMap.end() ||
+        box.value > labelToBoxMap[labelStr].value)
+    {
+      labelToBoxMap[labelStr] = box;
+    }
+  }
+
+  // Convert map to vector
+  std::vector<ei_impulse_result_bounding_box_t> uniqueObjects;
+  for (const auto &entry : labelToBoxMap)
+  {
+    uniqueObjects.push_back(entry.second);
+  }
+
+  return uniqueObjects;
 }

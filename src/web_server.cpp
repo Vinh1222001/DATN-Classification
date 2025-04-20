@@ -32,6 +32,7 @@ void RWebServer::taskFn()
 void RWebServer::onStream()
 {
     WiFiClient client = this->server->client();
+
     String response = "HTTP/1.1 200 OK\r\n";
     response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
     client.print(response);

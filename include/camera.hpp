@@ -9,6 +9,8 @@
 #include "types.hpp"
 #include "esp_camera.h"
 #include "communicate.hpp"
+#include <vector>
+#include <map>
 
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
@@ -59,6 +61,8 @@
 #define CAMERA_RAW_FRAME_BUFFER_ROWS 240
 #define CAMERA_FRAME_BYTE_SIZE 3
 
+#define OBJECT_SAMPLE_COUNTS 20
+
 using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
 using ClassifyState = Types::SemaphoreMutexData<bool>;
 
@@ -77,6 +81,11 @@ public:
   void startClassifying();
   void stopClassifying();
 
+  String getConclude();
+
+  static std::vector<ei_impulse_result_bounding_box_t> getUniqueObjectsWithMaxValue(
+      const std::vector<ei_impulse_result_bounding_box_t> &samples);
+
 private:
   bool isInitialized;
   bool debugNn;
@@ -85,6 +94,7 @@ private:
   Communicate *communicate;
 
   ClassifyState isClassifying;
+  std::vector<ei_impulse_result_bounding_box_t> samples;
 
   bool init();
   void deinit();

@@ -12,7 +12,8 @@ enum RobotState
     INIT = 100,
     SETUP,
     READY,
-    START,
+    START_SERVER,
+    START_CAMERA,
     WAITING,
     CLASSIFY,
     RESPONSE,
@@ -33,7 +34,8 @@ private:
     bool init();
     bool setup();
     bool ready();
-    bool start();
+    bool startServer();
+    bool startCamera();
     bool waiting();
     bool classify();
     bool response();
