@@ -6,6 +6,7 @@
 #include "camera.hpp"
 #include "web_server.hpp"
 #include "communicate.hpp"
+#include "utils/compare.hpp"
 
 enum RobotState
 {

@@ -32,7 +32,7 @@ void setup()
 
     ESP_LOGI(TAG, "Initializing...\n");
 
-    WifiUtil::initWifi(
+    while (!WifiUtil::initWifi(
         WIFI_SSID,
         WIFI_PASSWORD,
         true,
@@ -40,14 +40,20 @@ void setup()
         gateway,
         subnet,
         primaryDNS,
-        secondaryDNS);
+        secondaryDNS))
+    {
+        ESP_LOGE(TAG, "Retry to connect WIFI SSID: %s, PASSWORD: %s", WIFI_SSID, WIFI_PASSWORD);
+        delay(1000);
+    }
     Controller *controller = new Controller();
 
-    if (controller == nullptr)
+    while (controller == nullptr)
     {
         ESP_LOGE(TAG, "Can't init Controller");
-        return;
+        controller = new Controller();
+        delay(1000);
     }
+
     delay(2000);
     controller->createTask();
     delay(2000);

@@ -1,14 +1,13 @@
 #include "camera.hpp"
 #include <Object-detection-ESP32_inferencing.h>
 // Constructor: Khởi tạo cấu hình camera theo model đã định nghĩa (ví dụ: AI THINKER)
-Camera::Camera(Communicate *communicate)
+Camera::Camera()
     : BaseModule(
           "CAMERA",
           CAMERA_TASK_PRIORITY,
           0,
           CAMERA_TASK_STACK_DEPTH_LEVEL,
           CAMERA_TASK_PINNED_CORE_ID),
-      communicate(communicate),
       isInitialized(false),
       debugNn(false)
 {
@@ -42,13 +41,10 @@ Camera::Camera(Communicate *communicate)
   config.jpeg_quality = 12;
   config.fb_count = 2;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.grab_mode = CAMERA_GRAB_LATEST;
 
-  this->snapshotBuffer.value = nullptr;
-  this->snapshotBuffer.xMutex = xSemaphoreCreateMutex();
-
-  this->isClassifying.value = false;
-  this->isClassifying.xMutex = xSemaphoreCreateMutex();
+  this->snapshotBuffer = SetUtils::initMutexData<uint8_t *>(nullptr);
+  this->isClassifying = SetUtils::initMutexData<bool>(false);
 
   if (psramFound())
   {
@@ -60,15 +56,15 @@ Camera::Camera(Communicate *communicate)
     ESP_LOGE(this->NAME, "PSRAM NOT FOUND! Check board config or hardware.");
   }
 
-  if (this->init() == false)
+  while (!this->init())
   {
     ei_printf("Failed to initialize Camera!\r\n");
+    ei_printf("Retry to initialize Camera...\n");
+    delay(1000);
   }
-  else
-  {
-    ei_printf("Camera initialized\r\n");
-    this->isInitialized = true;
-  }
+
+  ei_printf("Camera initialized\r\n");
+  this->isInitialized = true;
 
   ei_printf("\nStarting continious inference in 2 seconds...\n");
   ei_sleep(2000);
@@ -128,14 +124,15 @@ void Camera::deinit()
     ESP_LOGE(this->NAME, "Camera deinit failed");
     return;
   }
-  isInitialized = false;
+  SetUtils::setMutexData<boolean>(this->isClassifying, false);
+  this->isInitialized = false;
 }
 
 bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 {
   ESP_LOGI(this->NAME, "Capture Processing...");
   bool doResize = false;
-  if (!isInitialized)
+  if (!this->isInitialized)
   {
     ESP_LOGE(this->NAME, "ERR: Camera is not initialized");
     return false;
@@ -158,7 +155,6 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
     return false;
   }
 
-  // Nếu kích thước ảnh đã capture khác với yêu cầu, cần crop và nội suy (resize)
   if ((img_width != CAMERA_RAW_FRAME_BUFFER_COLS) || (img_height != CAMERA_RAW_FRAME_BUFFER_ROWS))
   {
     doResize = true;
@@ -180,12 +176,9 @@ bool Camera::capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf)
 
 int Camera::getData(size_t offset, size_t length, float *out_ptr)
 {
-  // if (xSemaphoreTake(this->snapshotBuffer.xMutex, portMAX_DELAY) == pdTRUE)
-  // {
   if (this->snapshotBuffer.value == nullptr)
   {
     ESP_LOGE(this->NAME, "No snapshot buffer available");
-    xSemaphoreGive(this->snapshotBuffer.xMutex);
     return -1;
   }
   // Mỗi pixel có 3 byte (RGB)
@@ -200,8 +193,6 @@ int Camera::getData(size_t offset, size_t length, float *out_ptr)
     pixel_ix += 3;
     pixels_left--;
   }
-  //   xSemaphoreGive(this->snapshotBuffer.xMutex);
-  // }
   return 0;
 }
 
@@ -215,6 +206,7 @@ void Camera::taskFn()
   if (!this->getIsClassifying())
   {
     ESP_LOGI(this->NAME, "Don't need to Classify");
+    delay(3000);
     return;
   }
 
@@ -250,7 +242,7 @@ void Camera::taskFn()
     {
       ei_printf("ERR: Failed to run classifier (%d)\n", err);
       free(this->snapshotBuffer.value);
-      xSemaphoreGive(this->snapshotBuffer.value);
+      xSemaphoreGive(this->snapshotBuffer.xMutex);
       return;
     }
 
@@ -267,14 +259,16 @@ void Camera::taskFn()
     ei_printf("Object detection bounding boxes:\r\n");
     for (uint32_t i = 0; i < result.bounding_boxes_count; i++)
     {
-      ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
+      ObjectData bb = result.bounding_boxes[i];
 
       if (bb.value == 0)
         continue;
       ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
                 bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-
-      this->samples.push_back(bb);
+      if (bb.value > 0.7)
+      {
+        this->samples.push_back(bb);
+      }
     }
 #else
     for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
@@ -337,43 +331,31 @@ bool Camera::available()
 bool Camera::getIsClassifying()
 {
   bool status = false;
-  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
-  {
-    status = this->isClassifying.value;
-    xSemaphoreGive(this->isClassifying.xMutex);
-  }
+  GetUtils::getMutexData(
+      this->isClassifying,
+      [&](bool value)
+      {
+        status = value;
+      });
   return status;
 }
 
 void Camera::startClassifying()
 {
-  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
-  {
-    if (!this->isClassifying.value)
-    {
-      this->isClassifying.value = true;
-    }
-    xSemaphoreGive(this->isClassifying.xMutex);
-  }
+  SetUtils::setMutexData(this->isClassifying, true);
 }
 
 void Camera::stopClassifying()
 {
-  if (xSemaphoreTake(this->isClassifying.xMutex, portMAX_DELAY) == pdTRUE)
-  {
-    if (this->isClassifying.value)
-    {
-      this->isClassifying.value = false;
-    }
-    xSemaphoreGive(this->isClassifying.xMutex);
-  }
+  SetUtils::setMutexData(this->isClassifying, false);
 }
 
 String Camera::getConclude()
 {
-  std::vector<ei_impulse_result_bounding_box_t> uniqueObjects = Camera::getUniqueObjectsWithMaxValue(this->samples);
+  std::vector<ObjectData> uniqueObjects = Camera::getUniqueObjects(this->samples);
+  this->samples.clear();
 
-  ei_impulse_result_bounding_box_t conclude;
+  ObjectData conclude;
   for (uint32_t i = 0; i < uniqueObjects.size(); i++)
   {
     if (i <= 0)
@@ -407,29 +389,45 @@ String Camera::getConclude()
   return String("NOT_FOUND");
 }
 
-std::vector<ei_impulse_result_bounding_box_t> Camera::getUniqueObjectsWithMaxValue(
-    const std::vector<ei_impulse_result_bounding_box_t> &samples)
+std::vector<ObjectData> Camera::getUniqueObjects(
+    const std::vector<ObjectData> &samples)
 {
+  struct Accumulator
+  {
+    ObjectData box;
+    float totalValue;
+    int count;
+  };
 
-  std::map<std::string, ei_impulse_result_bounding_box_t> labelToBoxMap;
+  std::map<std::string, Accumulator> labelToAccumulator;
 
   for (const auto &box : samples)
   {
     std::string labelStr = std::string(box.label);
 
-    // Nếu label chưa tồn tại hoặc value lớn hơn, cập nhật
-    if (labelToBoxMap.find(labelStr) == labelToBoxMap.end() ||
-        box.value > labelToBoxMap[labelStr].value)
+    if (labelToAccumulator.find(labelStr) == labelToAccumulator.end())
     {
-      labelToBoxMap[labelStr] = box;
+      labelToAccumulator[labelStr] = {
+          .box = box,
+          .totalValue = box.value,
+          .count = 1};
+    }
+    else
+    {
+      labelToAccumulator[labelStr].totalValue += box.value;
+      labelToAccumulator[labelStr].count += 1;
     }
   }
 
-  // Convert map to vector
-  std::vector<ei_impulse_result_bounding_box_t> uniqueObjects;
-  for (const auto &entry : labelToBoxMap)
+  // Tạo vector kết quả với giá trị trung bình
+  std::vector<ObjectData> uniqueObjects;
+
+  for (auto &[label, acc] : labelToAccumulator)
   {
-    uniqueObjects.push_back(entry.second);
+    ObjectData averagedBox = acc.box;
+    averagedBox.value = acc.totalValue / acc.count;
+
+    uniqueObjects.push_back(averagedBox);
   }
 
   return uniqueObjects;

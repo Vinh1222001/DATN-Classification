@@ -8,7 +8,7 @@ Controller::Controller()
           CONTROLLER_TASK_STACK_DEPTH_LEVEL,
           CONTROLLER_TASK_PINNED_CORE_ID)
 {
-  this->state = INIT;
+  this->state = RobotState::INIT;
 }
 
 Controller::~Controller() {}
@@ -30,33 +30,50 @@ void Controller::taskFn()
 
 void Controller::stateMachine()
 {
+  ESP_LOGI(this->NAME, "Current State: %d", this->state);
   switch (this->state)
   {
-  case INIT:
+  case RobotState::INIT:
     this->init();
     break;
 
-  case SETUP:
+  case RobotState::SETUP:
+    // IS_NULL(this->communicate);
+    IS_NULL(this->camera);
+    IS_NULL(this->webServer);
+
     this->setup();
     break;
 
-  case READY:
+  case RobotState::READY:
+    IS_NULL(this->communicate);
     this->ready();
     break;
 
-  case START_CAMERA:
+  case RobotState::START_SERVER:
+    IS_NULL(this->webServer);
+    this->startServer();
+    break;
+
+  case RobotState::START_CAMERA:
+    IS_NULL(this->camera);
     this->startCamera();
     break;
 
-  case WAITING:
+  case RobotState::WAITING:
+    // IS_NULL(this->communicate);
+    IS_NULL(this->camera);
     this->waiting();
     break;
 
-  case CLASSIFY:
+  case RobotState::CLASSIFY:
+    IS_NULL(this->camera)
     this->classify();
     break;
 
-  case RESPONSE:
+  case RobotState::RESPONSE:
+    IS_NULL(this->camera);
+    IS_NULL(this->communicate)
     this->response();
     break;
 
@@ -70,16 +87,16 @@ bool Controller::init()
 {
   ESP_LOGI(this->NAME, "Initialize components...");
 
-  uint8_t mac[6] = {0x48, 0xe7, 0x29, 0x99, 0x32, 0x04};
-  this->communicate = new Communicate(mac);
-  if (this->communicate == nullptr)
-  {
-    ESP_LOGI(this->NAME, "Failed to create Communicate");
-    return false;
-  }
-  ESP_LOGI(this->NAME, "Created Communicate");
+  // uint8_t mac[6] = {0x48, 0xe7, 0x29, 0x99, 0x32, 0x04};
+  // this->communicate = new Communicate(mac);
+  // if (this->communicate == nullptr)
+  // {
+  //   ESP_LOGI(this->NAME, "Failed to create Communicate");
+  //   return false;
+  // }
+  // ESP_LOGI(this->NAME, "Created Communicate");
 
-  this->camera = new Camera(communicate);
+  this->camera = new Camera();
   if (this->camera == nullptr || !this->camera->available())
   {
     ESP_LOGI(this->NAME, "Failed to create camera");
@@ -97,7 +114,7 @@ bool Controller::init()
 
   ESP_LOGI(this->NAME, "Initialized all components...");
 
-  this->setState(SETUP);
+  this->setState(RobotState::SETUP);
   delay(2000);
 
   return true;
@@ -107,27 +124,18 @@ bool Controller::setup()
 {
   ESP_LOGI(this->NAME, "Set up all components...");
 
-  if (this->camera == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Camera is not initialized");
-    return false;
-  }
   this->camera->stopClassifying();
   ESP_LOGI(this->NAME, "Creating Camera's task...");
   this->camera->createTask();
-  delay(2000);
+  delay(1000);
 
-  if (this->webServer == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Web Server is not initialized");
-    return false;
-  }
   ESP_LOGI(this->NAME, "Creating Web Server's task...");
   this->webServer->createTask();
-  delay(2000);
+  delay(1000);
 
   ESP_LOGI(this->NAME, "All component have been set up");
-  this->setState(READY);
+  // this->setState(RobotState::READY);
+  this->setState(RobotState::START_CAMERA);
   delay(1000);
   return true;
 }
@@ -146,7 +154,7 @@ bool Controller::ready()
     std::vector<String> msg;
     msg.push_back("OK");
     this->communicate->send("RESPONSE", msg);
-    this->setState(START_SERVER);
+    this->setState(RobotState::START_SERVER);
     delay(1000);
     return true;
   }
@@ -161,30 +169,20 @@ bool Controller::ready()
 
 bool Controller::startServer()
 {
-  if (this->webServer == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Web Server is not initialized");
-    return false;
-  }
   ESP_LOGI(this->NAME, "Running Web Server's task...");
   this->webServer->run();
 
-  this->setState(START_CAMERA);
+  this->setState(RobotState::IDLE);
   delay(1000);
   return true;
 }
 
 bool Controller::startCamera()
 {
-  if (this->camera == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Camera is not initialized");
-    return false;
-  }
   ESP_LOGI(this->NAME, "Running Camera's task...");
   this->camera->run();
 
-  this->setState(WAITING);
+  this->setState(RobotState::START_SERVER);
   delay(1000);
 
   return true;
@@ -192,24 +190,27 @@ bool Controller::startCamera()
 
 bool Controller::waiting()
 {
-  CommunicateResponse response = this->communicate->getResponse();
+  // CommunicateResponse response = this->communicate->getResponse();
 
-  if (response.header.compareTo("PING") == 0)
-  {
-    std::vector<String> data;
-    data.push_back("OK");
-    this->communicate->send("RESPONSE", data);
-    ESP_LOGI(this->NAME, "Connected to Movement");
-    return true;
-  }
+  // if (response.header.compareTo("PING") == 0)
+  // {
+  //   std::vector<String> data;
+  //   data.push_back("OK");
+  //   this->communicate->send("RESPONSE", data);
+  //   ESP_LOGI(this->NAME, "Connected to Movement");
+  //   return true;
+  // }
 
-  if (response.header.compareTo("CLASSIFY") == 0)
-  {
-    ESP_LOGI(this->NAME, "Starting to Classify...");
-    this->camera->startClassifying();
-    this->setState(CLASSIFY);
-    return true;
-  }
+  // if (response.header.compareTo("CLASSIFY") == 0)
+  // {
+  //   ESP_LOGI(this->NAME, "Starting to Classify...");
+  //   this->camera->startClassifying();
+  //   this->setState(RobotState::CLASSIFY);
+  //   return true;
+  // }
+
+  this->camera->startClassifying();
+  this->setState(RobotState::CLASSIFY);
 
   return false;
 }
@@ -221,7 +222,7 @@ bool Controller::classify()
   // {
   //   ESP_LOGI(this->NAME, "Stop Classify, Return to Waiting state");
   //   this->camera->stopClassifying();
-  //   this->setState(WAITING);
+  //   this->setState(RobotState::WAITING);
   //   delay(1000);
   //   return true;
   // }
@@ -229,7 +230,7 @@ bool Controller::classify()
   if (!this->camera->getIsClassifying())
   {
     ESP_LOGI(this->NAME, "Stopped Classify, Switch to Response state");
-    this->setState(RESPONSE);
+    this->setState(RobotState::RESPONSE);
     delay(1000);
     return true;
   }
@@ -239,22 +240,20 @@ bool Controller::classify()
 
 bool Controller::response()
 {
-  if (this->camera == nullptr || this->communicate == nullptr)
-  {
-    ESP_LOGE(this->NAME, "Camera or communicate is null");
-  }
-
-  std::vector<String> conclude;
-  conclude.push_back(this->camera->getConclude());
-  this->communicate->send("OBJECT", conclude);
-
-  this->setState(WAITING);
-
+  // std::vector<String> conclude;
+  String object = this->camera->getConclude();
+  // conclude.push_back(object);
+  ESP_LOGI(this->NAME, "Sending message with content: %s", object.c_str());
+  // this->communicate->send("OBJECT", conclude);
+  delay(2000);
+  this->setState(RobotState::WAITING);
+  delay(2000);
   return true;
 }
 
 bool Controller::idle()
 {
   ESP_LOGI(this->NAME, "Idle...");
+  delay(1000);
   return true;
 }

@@ -3,14 +3,15 @@
 #define CAMERA_HPP
 
 #include "edge-impulse-sdk/dsp/image/image.hpp"
+#include "../.pio/libdeps/development/Object-detection-ESP32_inferencing/src/edge-impulse-sdk/classifier/ei_classifier_types.h"
 
 // #include <Arduino.h>
 #include "base_module.hpp"
 #include "types.hpp"
 #include "esp_camera.h"
-#include "communicate.hpp"
 #include <vector>
 #include <map>
+#include "utils/assign.hpp"
 
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 
@@ -61,15 +62,16 @@
 #define CAMERA_RAW_FRAME_BUFFER_ROWS 240
 #define CAMERA_FRAME_BYTE_SIZE 3
 
-#define OBJECT_SAMPLE_COUNTS 20
+#define OBJECT_SAMPLE_COUNTS 50
 
 using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
 using ClassifyState = Types::SemaphoreMutexData<bool>;
+using ObjectData = ei_impulse_result_bounding_box_t;
 
 class Camera : public BaseModule
 {
 public:
-  Camera(Communicate *communicate = nullptr);
+  Camera();
   ~Camera();
 
   int getData(size_t offset, size_t length, float *out_ptr);
@@ -83,18 +85,20 @@ public:
 
   String getConclude();
 
-  static std::vector<ei_impulse_result_bounding_box_t> getUniqueObjectsWithMaxValue(
-      const std::vector<ei_impulse_result_bounding_box_t> &samples);
+  /**
+   * @brief Get unique Objects with Average value at one
+   */
+  static std::vector<ObjectData> getUniqueObjects(
+      const std::vector<ObjectData> &samples);
 
 private:
   bool isInitialized;
   bool debugNn;
   camera_config_t config;
   SnapshotBuffer snapshotBuffer;
-  Communicate *communicate;
 
   ClassifyState isClassifying;
-  std::vector<ei_impulse_result_bounding_box_t> samples;
+  std::vector<ObjectData> samples;
 
   bool init();
   void deinit();
