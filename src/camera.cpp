@@ -41,7 +41,7 @@ Camera::Camera()
   config.jpeg_quality = 12;
   config.fb_count = 2;
   config.fb_location = CAMERA_FB_IN_PSRAM;
-  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
 
   this->snapshotBuffer = SetUtils::initMutexData<uint8_t *>(nullptr);
   this->isClassifying = SetUtils::initMutexData<bool>(false);
@@ -265,10 +265,31 @@ void Camera::taskFn()
         continue;
       ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
                 bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-      if (bb.value > 0.7)
+      if (strcmp(bb.label, "hiep_si") == 0)
       {
-        this->samples.push_back(bb);
+        if (bb.value < 0.6)
+        {
+          bb.value = bb.value + (float)HIEP_SI_OBJECT_DRIFF;
+        }
       }
+
+      if (strcmp(bb.label, "vit_vang") == 0)
+      {
+        if (bb.value < 0.6)
+        {
+          bb.value = bb.value - (float)VIT_VANG_OBJECT_DRIFF;
+        }
+      }
+
+      if (strcmp(bb.label, "jerry") == 0)
+      {
+        if (bb.value < 0.6)
+        {
+          bb.value = bb.value + (float)JERRY_OBJECT_DRIFF;
+        }
+      }
+
+      this->samples.push_back(bb);
     }
 #else
     for (uint16_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++)
@@ -353,11 +374,11 @@ void Camera::stopClassifying()
 String Camera::getConclude()
 {
   std::vector<ObjectData> uniqueObjects = Camera::getUniqueObjects(this->samples);
-  this->samples.clear();
 
   ObjectData conclude;
   for (uint32_t i = 0; i < uniqueObjects.size(); i++)
   {
+    ESP_LOGI(this->NAME, "Object: %s (%.3f)", uniqueObjects[i].label, uniqueObjects[i].value);
     if (i <= 0)
     {
       conclude = uniqueObjects[i];
@@ -369,6 +390,7 @@ String Camera::getConclude()
         conclude = uniqueObjects[i];
       }
     }
+    ESP_LOGI(this->NAME, "Conclude: %s (%.3f)", conclude.label, conclude.value);
   }
 
   if (conclude.value > 0.5)
@@ -431,4 +453,9 @@ std::vector<ObjectData> Camera::getUniqueObjects(
   }
 
   return uniqueObjects;
+}
+
+void Camera::clearSamples()
+{
+  this->samples.clear();
 }

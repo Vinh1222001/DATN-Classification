@@ -3,21 +3,31 @@
 RWebServer::RWebServer(Camera *cam)
     : BaseModule(
           "RWEB_SERVER",
-          RWEB_SERVER_TASK_PRIORITY,
+          4,
           1,
           RWEB_SERVER_TASK_STACK_DEPTH_LEVEL,
-          RWEB_SERVER_TASK_PINNED_CORE_ID),
+          1),
       camera(cam)
 {
     this->server = new WebServer(80);
+    ESP_LOGI(this->NAME, "Server uri: %s", this->server->uri().c_str());
     this->server->on(
         "/stream",
         HTTP_GET,
-        [&]()
+        [this]()
         {
+            ESP_LOGI(this->NAME, "Server Callback");
             this->onStream();
         });
-    this->server->begin();
+    if (this->camera != nullptr)
+    {
+        ESP_LOGI(this->NAME, "Server is starting...");
+        this->server->begin();
+    }
+    else
+    {
+        ESP_LOGE(this->NAME, "Camera is NULL");
+    }
 }
 
 RWebServer::~RWebServer()
@@ -26,12 +36,18 @@ RWebServer::~RWebServer()
 
 void RWebServer::taskFn()
 {
+    ESP_LOGI(this->NAME, "taskFn");
     this->server->handleClient();
 }
 
 void RWebServer::onStream()
 {
     WiFiClient client = this->server->client();
+    if (!client)
+    {
+        ESP_LOGE(this->NAME, "Client is NULL");
+        return;
+    }
 
     String response = "HTTP/1.1 200 OK\r\n";
     response += "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n\r\n";
@@ -59,12 +75,12 @@ void RWebServer::onStream()
             ESP_LOGE(this->NAME, "Failed to get frame buffer");
             continue;
         }
-
-        client.printf("--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", fb->len);
+        ESP_LOGI(this->NAME, "Client printing...");
+        client.print("--frame\r\nContent-Type: image/jpeg\r\n\r\n");
         client.write(fb->buf, fb->len);
         client.print("\r\n");
         esp_camera_fb_return(fb);
-        delay(RWEB_SERVER_TASK_DELAY);
+        delay(20);
     }
 
     client.stop();

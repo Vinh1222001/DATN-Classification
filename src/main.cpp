@@ -2,6 +2,9 @@
 
 const char *TAG = "SET_UP";
 
+const char *WIFI_SSID = "Vinhtage";
+const char *WIFI_PASSWORD = "haochoancuc";
+
 IPAddress localIP(192, 168, 2, 200); // <--- Your desired static IP
 IPAddress gateway(192, 168, 2, 1);
 IPAddress subnet(255, 255, 255, 0);
@@ -35,16 +38,18 @@ void setup()
     while (!WifiUtil::initWifi(
         WIFI_SSID,
         WIFI_PASSWORD,
-        true,
-        localIP,
-        gateway,
-        subnet,
-        primaryDNS,
-        secondaryDNS))
+        true
+        // localIP,
+        // gateway,
+        // subnet,
+        // primaryDNS,
+        // secondaryDNS
+        ))
     {
         ESP_LOGE(TAG, "Retry to connect WIFI SSID: %s, PASSWORD: %s", WIFI_SSID, WIFI_PASSWORD);
         delay(1000);
     }
+
     Controller *controller = new Controller();
 
     while (controller == nullptr)

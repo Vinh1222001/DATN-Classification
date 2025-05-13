@@ -62,7 +62,11 @@
 #define CAMERA_RAW_FRAME_BUFFER_ROWS 240
 #define CAMERA_FRAME_BYTE_SIZE 3
 
-#define OBJECT_SAMPLE_COUNTS 50
+#define OBJECT_SAMPLE_COUNTS 10
+
+#define HIEP_SI_OBJECT_DRIFF 0.2
+#define VIT_VANG_OBJECT_DRIFF 0.2
+#define JERRY_OBJECT_DRIFF 0.3
 
 using SnapshotBuffer = Types::SemaphoreMutexData<uint8_t *>;
 using ClassifyState = Types::SemaphoreMutexData<bool>;
@@ -84,6 +88,7 @@ public:
   void stopClassifying();
 
   String getConclude();
+  void clearSamples();
 
   /**
    * @brief Get unique Objects with Average value at one
