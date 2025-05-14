@@ -3,10 +3,10 @@
 RWebServer::RWebServer(Camera *cam)
     : BaseModule(
           "RWEB_SERVER",
-          4,
-          1,
+          RWEB_SERVER_TASK_PRIORITY,
+          RWEB_SERVER_TASK_DELAY,
           RWEB_SERVER_TASK_STACK_DEPTH_LEVEL,
-          1),
+          RWEB_SERVER_TASK_PINNED_CORE_ID),
       camera(cam)
 {
     this->server = new WebServer(80);
@@ -36,7 +36,6 @@ RWebServer::~RWebServer()
 
 void RWebServer::taskFn()
 {
-    ESP_LOGI(this->NAME, "taskFn");
     this->server->handleClient();
 }
 
@@ -80,7 +79,7 @@ void RWebServer::onStream()
         client.write(fb->buf, fb->len);
         client.print("\r\n");
         esp_camera_fb_return(fb);
-        delay(20);
+        delay(RWEB_SERVER_ON_STREAM_DELAY);
     }
 
     client.stop();

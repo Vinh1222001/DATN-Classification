@@ -4,8 +4,9 @@
 
 #include "base_module.hpp"
 #include "camera.hpp"
-// #include "esp_http_server.h"
 #include <WebServer.h>
+
+#define RWEB_SERVER_ON_STREAM_DELAY 20
 
 class RWebServer : public BaseModule
 {
