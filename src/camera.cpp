@@ -265,29 +265,29 @@ void Camera::taskFn()
         continue;
       ei_printf("  %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\r\n",
                 bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-      if (strcmp(bb.label, "hiep_si") == 0)
-      {
-        if (bb.value < 0.6)
-        {
-          bb.value = bb.value + (float)HIEP_SI_OBJECT_DRIFF;
-        }
-      }
+      // if (strcmp(bb.label, "hiep_si") == 0)
+      // {
+      //   if (bb.value < 0.6)
+      //   {
+      //     bb.value = bb.value + (float)HIEP_SI_OBJECT_DRIFF;
+      //   }
+      // }
 
-      if (strcmp(bb.label, "vit_vang") == 0)
-      {
-        if (bb.value < 0.6)
-        {
-          bb.value = bb.value - (float)VIT_VANG_OBJECT_DRIFF;
-        }
-      }
+      // if (strcmp(bb.label, "vit_vang") == 0)
+      // {
+      //   if (bb.value < 0.6)
+      //   {
+      //     bb.value = bb.value - (float)VIT_VANG_OBJECT_DRIFF;
+      //   }
+      // }
 
-      if (strcmp(bb.label, "jerry") == 0)
-      {
-        if (bb.value < 0.6)
-        {
-          bb.value = bb.value + (float)JERRY_OBJECT_DRIFF;
-        }
-      }
+      // if (strcmp(bb.label, "jerry") == 0)
+      // {
+      //   if (bb.value < 0.6)
+      //   {
+      //     bb.value = bb.value + (float)JERRY_OBJECT_DRIFF;
+      //   }
+      // }
 
       this->samples.push_back(bb);
     }

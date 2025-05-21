@@ -38,9 +38,9 @@ void Controller::stateMachine()
     break;
 
   case RobotState::SETUP:
-    // IS_NULL(this->communicate);
+    IS_NULL(this->communicate);
     IS_NULL(this->camera);
-    // IS_NULL(this->webServer);
+    IS_NULL(this->webServer);
 
     this->setup();
     break;
@@ -51,7 +51,7 @@ void Controller::stateMachine()
     break;
 
   case RobotState::START_SERVER:
-    // IS_NULL(this->webServer);
+    IS_NULL(this->webServer);
     this->startServer();
     break;
 
@@ -61,7 +61,7 @@ void Controller::stateMachine()
     break;
 
   case RobotState::WAITING:
-    // IS_NULL(this->communicate);
+    IS_NULL(this->communicate);
     IS_NULL(this->camera);
     this->waiting();
     break;
@@ -134,7 +134,6 @@ bool Controller::setup()
   delay(1000);
 
   ESP_LOGI(this->NAME, "All component have been set up");
-  // this->setState(RobotState::READY);
   this->setState(RobotState::START_SERVER);
   delay(1000);
   return true;
@@ -173,9 +172,7 @@ bool Controller::startServer()
   ESP_LOGI(this->NAME, "Running Web Server's task...");
   this->webServer->run();
 
-  // this->setState(RobotState::READY);
-
-  this->setState(RobotState::IDLE);
+  this->setState(RobotState::READY);
 
   delay(1000);
   return true;
@@ -196,15 +193,6 @@ bool Controller::waiting()
 {
   CommunicateResponse response = this->communicate->getResponse();
 
-  // if (response.header.compareTo("PING") == 0)
-  // {
-  //   std::vector<String> data;
-  //   data.push_back("OK");
-  //   this->communicate->send("RESPONSE", data);
-  //   ESP_LOGI(this->NAME, "Connected to Movement");
-  //   return true;
-  // }
-
   if (response.header.compareTo("CLASSIFY") == 0)
   {
     ESP_LOGI(this->NAME, "Starting to Classify...");
@@ -220,16 +208,6 @@ bool Controller::waiting()
 
 bool Controller::classify()
 {
-  // CommunicateResponse response = this->communicate->getResponse();
-  // if (response.header.compareTo("STOP_CLASSIFY") == 0)
-  // {
-  //   ESP_LOGI(this->NAME, "Stop Classify, Return to Waiting state");
-  //   this->camera->stopClassifying();
-  //   this->setState(RobotState::WAITING);
-  //   delay(1000);
-  //   return true;
-  // }
-
   if (!this->camera->getIsClassifying())
   {
     ESP_LOGI(this->NAME, "Stopped Classify, Switch to Response state");
